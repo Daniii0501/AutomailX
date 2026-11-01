@@ -1,11 +1,13 @@
 import Animal from "@/components/Animal";
 import UnsubscribeButton from "@/components/UnsubscribeButton";
-import { q1 } from "@/lib/db";
+import { notFound } from "next/navigation";
+import { dbConfigured, q1 } from "@/lib/db";
 
 export const metadata = { title: "Darme de baja" };
 
 export default async function Unsubscribe({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
+  if (!dbConfigured) notFound();
   const sub = await q1<{ email: string; status: string; user_id: string }>(
     "SELECT email, status, user_id FROM subscribers WHERE token = ?",
     [token],

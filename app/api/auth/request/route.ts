@@ -1,4 +1,5 @@
 import { createLoginToken, demoLogin } from "@/lib/auth";
+import { dbConfigured } from "@/lib/db";
 import { body } from "@/lib/api";
 import { mailEnabled, sendMail, simpleMail } from "@/lib/email";
 import { hit } from "@/lib/rate";
@@ -6,6 +7,7 @@ import { baseUrl, ipHash, json, sameOrigin } from "@/lib/util";
 
 export async function POST(req: Request) {
   if (!sameOrigin(req)) return json({ error: "Petición no permitida." }, 403);
+  if (!dbConfigured) return json({ error: "Falta conectar la base de datos (Supabase)." }, 503);
   if (!(await hit(`login:${ipHash(req)}`, 25))) {
     return json({ error: "Demasiados intentos. Prueba mañana." }, 429);
   }

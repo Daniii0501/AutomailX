@@ -13,34 +13,40 @@ Contrata a tu redactor de newsletters: eliges un animal con personalidad, le cue
 - **Historial**, **Ajustes**, recordatorio semanal por correo, borrar cuenta.
 - **Límites** del plan gratuito en `lib/plans.ts` (ajústalos a tu gusto).
 
-## Arrancar en tu ordenador
+## Poner en marcha
+
+AutoMailX necesita una base de datos **Postgres** (Supabase). Sin ella, la portada y la demo funcionan,
+pero `/login` avisa de que falta conectarla.
+
+**En Vercel (lo más fácil):** *Storage → Supabase → Create* y conéctalo a tu proyecto. Vercel añade solo
+`POSTGRES_URL`. Después pulsa *Redeploy*. Las tablas se crean solas la primera vez.
+
+**A mano:** en Supabase, *Connect → Transaction pooler*, copia la dirección y guárdala como `DATABASE_URL`
+(sustituyendo `[YOUR-PASSWORD]`; si la contraseña lleva símbolos raros, hay que codificarlos).
 
 ```bash
 npm install
-npm run dev        # http://localhost:3000
+cp .env.example .env.local   # rellena DATABASE_URL
+npm run dev                  # http://localhost:3000
 ```
 
-Sin ninguna clave funciona en **modo demo**: el enlace de acceso se muestra en pantalla, la IA es
-simulada y los correos no se envían. Los datos se guardan en `data/automailx.db`.
-
-## Pasar a producción (todo opcional, de uno en uno)
-
-Copia `.env.example` a `.env.local` (o, en Vercel, *Settings → Environment Variables*):
+## Variables
 
 | Qué | Variable | Para qué |
 | --- | --- | --- |
-| Base de datos | `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN` | Que los datos se guarden de verdad |
-| Correo | `RESEND_API_KEY`, `MAIL_FROM` | Enviar enlaces de acceso y newsletters. Hay que verificar un dominio en Resend |
+| Base de datos | `DATABASE_URL` o `POSTGRES_URL` | **Obligatoria**. La integración de Supabase en Vercel la pone sola |
+| Entrada de pruebas | `ALLOW_DEMO_LOGIN=1` | Muestra el enlace de acceso en pantalla (solo para probar tú sola/o) |
+| Correo | `RESEND_API_KEY`, `MAIL_FROM` | Enviar enlaces de acceso y newsletters. Para escribir a otros hay que verificar un dominio en Resend |
 | IA | `ANTHROPIC_API_KEY` | Que redacte Claude en vez del modo simulado |
 | Recordatorio | `CRON_SECRET` | Activa el recordatorio semanal (`vercel.json` ya lo programa) |
 
-**Importante:** en cuanto pones `RESEND_API_KEY` o la base de datos, el enlace de acceso deja de
-mostrarse en pantalla y solo llega por correo. Es la protección que impide que cualquiera entre
-con el correo de otro.
+**Importante:** `ALLOW_DEMO_LOGIN=1` permite entrar con el correo de cualquiera. Úsala solo mientras pruebas
+y quítala cuando conectes el correo (Resend): entonces el enlace de acceso llega solo por email.
 
 ## Seguridad (lo que ya está hecho)
 
 - Sesiones con cookie `HttpOnly` + `SameSite=Lax`; los tokens se guardan con hash.
+- Tablas con seguridad de filas (RLS) activada: la API pública de Supabase no puede leerlas.
 - Enlaces de acceso de un solo uso, 15 minutos, con límite de peticiones.
 - Protección CSRF (comprobación de origen) en todo lo que modifica datos.
 - Cada consulta filtra por usuario: nadie ve ni toca datos de otro.

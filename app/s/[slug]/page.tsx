@@ -3,10 +3,11 @@ import { notFound } from "next/navigation";
 import Animal from "@/components/Animal";
 import SubscribeForm from "@/components/SubscribeForm";
 import { ANIMALS, isAnimal } from "@/lib/animals";
-import { q1 } from "@/lib/db";
+import { dbConfigured, q1 } from "@/lib/db";
 
 export default async function PublicSubscribe({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
+  if (!dbConfigured) notFound();
   const pub = await q1<{ user_id: string; name: string; sender_name: string }>(
     "SELECT user_id, name, sender_name FROM publications WHERE slug = ?",
     [slug],

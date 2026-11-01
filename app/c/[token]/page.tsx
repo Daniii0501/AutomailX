@@ -1,12 +1,14 @@
 import Link from "next/link";
 import Animal from "@/components/Animal";
 import ConfirmButton from "@/components/ConfirmButton";
-import { q1 } from "@/lib/db";
+import { notFound } from "next/navigation";
+import { dbConfigured, q1 } from "@/lib/db";
 
 export const metadata = { title: "Confirmar suscripción" };
 
 export default async function Confirm({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
+  if (!dbConfigured) notFound();
   const sub = await q1<{ status: string; user_id: string }>("SELECT status, user_id FROM subscribers WHERE token = ?", [token]);
   const pub = sub ? await q1<{ name: string }>("SELECT name FROM publications WHERE user_id = ?", [sub.user_id]) : null;
   const valid = !!sub && sub.status !== "unsubscribed";

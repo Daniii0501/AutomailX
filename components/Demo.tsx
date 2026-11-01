@@ -1,111 +1,69 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import {
-  flatten,
-  SAMPLE_NOTE,
-  TONES,
-  type Newsletter,
-  type Tone,
-} from "@/lib/newsletter";
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Animal from "@/components/Animal";
+import { useSpeech } from "@/components/useSpeech";
+import { ANIMAL_IDS, ANIMALS, type AnimalId } from "@/lib/animals";
+import { api } from "@/lib/client";
+import { flatten, SAMPLE_NOTE, type Newsletter } from "@/lib/newsletter";
 
-type Phase = "idle" | "listening" | "thinking" | "writing" | "done" | "sent";
+type Phase = "pick" | "brief" | "listening" | "thinking" | "writing" | "done";
 
-const STEPS = [
-  "Escuchando tu nota",
-  "Detectando lo importante",
-  "Escribiendo con tu tono",
-  "Maquetando el correo",
-];
 const STEP_MS = 650;
-
-// Tipos mínimos de la Web Speech API (no vienen en lib.dom de TypeScript).
-type SpeechResultList = ArrayLike<ArrayLike<{ transcript: string }> & { isFinal: boolean }>;
-type SpeechRec = {
-  lang: string;
-  continuous: boolean;
-  interimResults: boolean;
-  onresult: ((e: { results: SpeechResultList }) => void) | null;
-  onerror: (() => void) | null;
-  onend: (() => void) | null;
-  start: () => void;
-  stop: () => void;
-};
-type SpeechRecCtor = new () => SpeechRec;
-
-function getSpeechCtor(): SpeechRecCtor | null {
-  if (typeof window === "undefined") return null;
-  const w = window as unknown as {
-    SpeechRecognition?: SpeechRecCtor;
-    webkitSpeechRecognition?: SpeechRecCtor;
-  };
-  return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
-}
-
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export default function Demo() {
-  const [phase, setPhase] = useState<Phase>("idle");
+  const [phase, setPhase] = useState<Phase>("pick");
+  const [animal, setAnimal] = useState<AnimalId>("zorro");
   const [note, setNote] = useState("");
-  const [tone, setTone] = useState<Tone>("cercano");
+  const [typing, setTyping] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [newsletter, setNewsletter] = useState<Newsletter | null>(null);
   const [shown, setShown] = useState(0);
   const [stepIdx, setStepIdx] = useState(0);
-  const [error, setError] = useState<string | null>(null);
-  const [typing, setTyping] = useState(false);
-  const canSpeak = useSyncExternalStore(
-    () => () => {},
-    () => getSpeechCtor() !== null,
-    () => false,
-  );
-
-  const recRef = useRef<SpeechRec | null>(null);
   const noteRef = useRef("");
   const previewRef = useRef<HTMLDivElement | null>(null);
 
-  useEffect(() => {
-    noteRef.current = note;
-  }, [note]);
+  const a = ANIMALS[animal];
+  const steps = useMemo(
+    () => [`${a.defaultName} lee tu nota`, "Elige lo más importante", `Escribe con voz de ${a.species.toLowerCase()}`, "Maqueta el correo"],
+    [a],
+  );
+
+  const onText = useCallback((t: string) => {
+    noteRef.current = t;
+    setNote(t);
+  }, []);
+  const speech = useSpeech(onText);
 
   const blocks = useMemo(() => (newsletter ? flatten(newsletter) : []), [newsletter]);
-  const total = useMemo(() => blocks.reduce((a, b) => a + b.text.length, 0), [blocks]);
+  const total = useMemo(() => blocks.reduce((s, b) => s + b.text.length, 0), [blocks]);
 
-  const generate = useCallback(async (text: string, t: Tone) => {
-    setError(null);
-    setShown(0);
-    setStepIdx(0);
-    setPhase("thinking");
-
-    const ticker = (async () => {
-      for (let i = 1; i <= STEPS.length; i++) {
-        await sleep(STEP_MS);
-        setStepIdx(i);
-      }
-    })();
-
-    try {
-      const [res] = await Promise.all([
-        fetch("/api/generate", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ note: text, tone: t }),
-        }).then((r) => r.json() as Promise<{ newsletter?: Newsletter; error?: string }>),
-        ticker,
-      ]);
-      if (!res.newsletter) {
-        setError(res.error ?? "No he podido generar la newsletter.");
-        setPhase("idle");
+  const generate = useCallback(
+    async (text: string, an: AnimalId) => {
+      setError(null);
+      setShown(0);
+      setStepIdx(0);
+      setPhase("thinking");
+      const ticker = (async () => {
+        for (let i = 1; i <= 4; i++) {
+          await sleep(STEP_MS);
+          setStepIdx(i);
+        }
+      })();
+      const [res] = await Promise.all([api<{ newsletter?: Newsletter }>("/api/generate", "POST", { note: text, animal: an }), ticker]);
+      if (!res.ok || !res.data.newsletter) {
+        setError(res.data.error ?? "No he podido escribirla. Inténtalo de nuevo.");
+        setPhase("brief");
         return;
       }
-      setNewsletter(res.newsletter);
+      setNewsletter(res.data.newsletter);
       setPhase("writing");
-    } catch {
-      setError("Algo ha fallado. Inténtalo de nuevo.");
-      setPhase("idle");
-    }
-  }, []);
+    },
+    [],
+  );
 
-  // Efecto máquina de escribir.
   useEffect(() => {
     if (phase !== "writing") return;
     const id = setInterval(() => {
@@ -122,80 +80,37 @@ export default function Demo() {
     return () => clearInterval(id);
   }, [phase, total]);
 
-  // Auto-scroll mientras se escribe.
   useEffect(() => {
     const el = previewRef.current;
     if (el && phase === "writing") el.scrollTop = el.scrollHeight;
   }, [shown, phase]);
 
-  const startListening = () => {
-    const Ctor = getSpeechCtor();
-    if (!Ctor) {
-      setTyping(true);
-      return;
-    }
-    setError(null);
+  const pick = (id: AnimalId) => {
+    setAnimal(id);
     setNote("");
     noteRef.current = "";
-    const rec = new Ctor();
-    rec.lang = "es-ES";
-    rec.continuous = true;
-    rec.interimResults = true;
-    rec.onresult = (e) => {
-      let text = "";
-      for (let i = 0; i < e.results.length; i++) text += e.results[i][0].transcript + " ";
-      const clean = text.trim();
-      noteRef.current = clean;
-      setNote(clean);
-    };
-    rec.onerror = () => {
-      setError("No he podido acceder al micrófono. Puedes escribir tu nota.");
-      setTyping(true);
-      setPhase("idle");
-    };
-    rec.onend = () => {
-      recRef.current = null;
-    };
-    recRef.current = rec;
-    try {
-      rec.start();
-      setPhase("listening");
-    } catch {
-      setTyping(true);
-    }
-  };
-
-  const stopListening = () => {
-    recRef.current?.stop();
-    const text = noteRef.current.trim();
-    if (text.length < 15) {
-      setError("No te he oído bien. Prueba otra vez o escribe tu nota.");
-      setTyping(true);
-      setPhase("idle");
-      return;
-    }
-    void generate(text, tone);
-  };
-
-  const changeTone = (t: Tone) => {
-    setTone(t);
-    if (phase === "done" && note.trim().length >= 15) void generate(note, t);
-  };
-
-  const reset = () => {
-    setPhase("idle");
-    setNewsletter(null);
-    setShown(0);
-    setNote("");
     setError(null);
     setTyping(false);
+    setPhase("brief");
   };
 
-  const useSample = () => {
-    setNote(SAMPLE_NOTE);
-    noteRef.current = SAMPLE_NOTE;
-    setTyping(true);
-    void generate(SAMPLE_NOTE, tone);
+  const startVoice = () => {
+    setNote("");
+    noteRef.current = "";
+    if (speech.start()) setPhase("listening");
+    else setTyping(true);
+  };
+
+  const stopVoice = () => {
+    speech.stop();
+    const t = noteRef.current.trim();
+    if (t.length < 15) {
+      setError("No te he oído bien. Prueba otra vez o escribe tu nota.");
+      setTyping(true);
+      setPhase("brief");
+      return;
+    }
+    void generate(t, animal);
   };
 
   // Offsets para revelar el texto bloque a bloque.
@@ -204,99 +119,103 @@ export default function Demo() {
     return arr;
   }, []);
   const visible = blocks.map((b, idx) => {
-    const start = starts[idx];
-    const n = Math.max(0, Math.min(b.text.length, shown - start));
-    return { ...b, idx, text: b.text.slice(0, n), started: shown > start };
+    const n = Math.max(0, Math.min(b.text.length, shown - starts[idx]));
+    return { ...b, idx, text: b.text.slice(0, n), started: shown > starts[idx] };
   });
   const lastStarted = visible.reduce((last, b, i) => (b.started ? i : last), -1);
   const subject = visible.find((b) => b.kind === "subject");
   const preheader = visible.find((b) => b.kind === "preheader");
-  const bodyBlocks = visible.filter((b) => b.kind !== "subject" && b.kind !== "preheader");
-
-  const showEmail = phase === "writing" || phase === "done" || phase === "sent";
+  const body = visible.filter((b) => b.kind !== "subject" && b.kind !== "preheader");
+  const showEmail = phase === "writing" || phase === "done";
+  const caret = <span className="anim-caret ml-0.5 inline-block h-4 w-0.5 translate-y-0.5 bg-brand" />;
 
   return (
     <div className="mx-auto w-full max-w-[390px]">
-      {/* Selector de tono */}
-      <div className="mb-4 flex items-center justify-center gap-2" role="group" aria-label="Tono">
-        {TONES.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => changeTone(t.id)}
-            disabled={phase === "thinking" || phase === "writing" || phase === "listening"}
-            className={`rounded-full px-3.5 py-1.5 text-sm transition disabled:opacity-40 ${
-              tone === t.id
-                ? "bg-white text-black font-medium"
-                : "glass text-muted hover:text-text"
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Móvil */}
-      <div className="relative mx-auto h-[660px] w-full rounded-[2.6rem] border border-white/15 bg-[#07070b] p-2.5 shadow-[0_30px_120px_-20px_rgba(139,92,246,0.55)]">
-        <div className="relative flex h-full flex-col overflow-hidden rounded-[2.1rem] bg-bg-soft">
+      <div className="relative mx-auto h-[660px] w-full rounded-[2.6rem] border border-black/10 bg-[#101014] p-2.5 shadow-[0_40px_100px_-30px_rgba(109,74,255,0.45)]">
+        <div className="relative flex h-full flex-col overflow-hidden rounded-[2.1rem]" style={{ background: showEmail ? "#fff" : a.soft, transition: "background .4s" }}>
           <div className="absolute left-1/2 top-2 z-20 h-6 w-24 -translate-x-1/2 rounded-full bg-black" />
           <div className="h-10 shrink-0" />
 
-          {/* IDLE */}
-          {phase === "idle" && (
-            <div className="flex flex-1 flex-col items-center justify-center px-6 text-center anim-fade-up">
-              {!typing ? (
-                <>
+          {/* 1. ELEGIR ANIMAL */}
+          {phase === "pick" && (
+            <div className="anim-fade-up flex flex-1 flex-col px-5 pb-6 pt-3 text-center" style={{ background: "#fbfaf8" }}>
+              <p className="text-xl font-semibold tracking-tight">Elige a tu redactor</p>
+              <p className="mt-1 text-sm text-muted">Cada uno escribe a su manera.</p>
+              <div className="mt-5 grid flex-1 grid-cols-2 content-start gap-3">
+                {ANIMAL_IDS.map((id) => (
                   <button
-                    onClick={startListening}
-                    aria-label="Empezar a grabar tu nota de voz"
-                    className="relative grid h-28 w-28 place-items-center rounded-full bg-gradient-to-br from-accent to-[#6d3df0] shadow-[0_0_60px_rgba(139,92,246,0.6)] transition hover:scale-105 active:scale-95"
+                    key={id}
+                    onClick={() => pick(id)}
+                    className="group rounded-3xl border border-line bg-white p-3 text-center transition hover:-translate-y-0.5 hover:shadow-lg active:scale-95"
                   >
-                    <span className="anim-ring absolute inset-0 rounded-full bg-accent/50" />
-                    <MicIcon className="relative h-11 w-11 text-white" />
+                    <Animal id={id} size={74} className="mx-auto transition group-hover:scale-105" />
+                    <p className="mt-1.5 text-[15px] font-semibold">{ANIMALS[id].species}</p>
+                    <p className="text-xs leading-tight text-muted">{ANIMALS[id].tagline}</p>
                   </button>
-                  <p className="mt-7 text-xl font-semibold">Cuenta tu semana</p>
-                  <p className="mt-1.5 text-sm text-muted">
-                    Habla 30 segundos. Yo escribo la newsletter.
-                  </p>
-                </>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 2. CONTARLE LA SEMANA */}
+          {phase === "brief" && (
+            <div className="anim-fade-up flex flex-1 flex-col items-center px-6 pb-6 pt-2 text-center">
+              <button onClick={() => setPhase("pick")} className="self-start text-sm text-muted hover:text-ink">
+                ← Cambiar
+              </button>
+              <Animal id={animal} size={96} className="mt-1" />
+              <div className="mt-3 rounded-2xl bg-white px-4 py-2.5 text-[15px] shadow-sm">
+                Soy <b>{a.defaultName}</b>, tu {a.species.toLowerCase()}. {typing ? "Escríbeme qué ha pasado." : "Cuéntame tu semana."}
+              </div>
+
+              {!typing ? (
+                <button
+                  onClick={startVoice}
+                  aria-label="Empezar a grabar tu nota de voz"
+                  className="relative mt-8 grid h-24 w-24 place-items-center rounded-full text-white shadow-xl transition hover:scale-105 active:scale-95"
+                  style={{ background: a.color }}
+                >
+                  <span className="anim-ring absolute inset-0 rounded-full" style={{ background: a.color, opacity: 0.4 }} />
+                  <svg viewBox="0 0 24 24" className="relative h-10 w-10" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <rect x="9" y="2.5" width="6" height="11" rx="3" />
+                    <path d="M5 11.5a7 7 0 0 0 14 0M12 18.5V22" />
+                  </svg>
+                </button>
               ) : (
-                <div className="w-full text-left">
-                  <label htmlFor="note" className="mb-2 block text-sm font-medium">
-                    Escribe lo que ha pasado esta semana
-                  </label>
+                <div className="mt-4 w-full text-left">
                   <textarea
-                    id="note"
                     value={note}
                     onChange={(e) => setNote(e.target.value)}
-                    rows={7}
-                    placeholder="Ej.: Esta semana lanzamos… además el viernes hacemos…"
-                    className="w-full resize-none rounded-2xl border border-line bg-black/30 p-3.5 text-[15px] leading-relaxed outline-none placeholder:text-muted/70 focus:border-accent"
+                    rows={6}
+                    aria-label="Tu nota"
+                    placeholder="Esta semana lanzamos…"
+                    className="input resize-none text-[15px] leading-relaxed"
                   />
-                  <button
-                    onClick={() => void generate(note, tone)}
-                    disabled={note.trim().length < 15}
-                    className="mt-3 w-full rounded-2xl bg-white py-3 text-[15px] font-semibold text-black transition disabled:opacity-35"
-                  >
-                    Crear newsletter
+                  <button onClick={() => void generate(note, animal)} disabled={note.trim().length < 15} className="btn btn-primary mt-3 w-full">
+                    Que escriba {a.defaultName}
                   </button>
                 </div>
               )}
 
               {error && (
-                <p role="alert" className="mt-4 rounded-xl bg-red-500/10 px-3 py-2 text-sm text-red-300">
+                <p role="alert" className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-sm text-danger">
                   {error}
                 </p>
               )}
 
-              <div className="mt-6 flex flex-col items-center gap-2 text-sm">
-                <button onClick={useSample} className="text-accent underline-offset-4 hover:underline">
+              <div className="mt-5 flex flex-col items-center gap-2 text-sm">
+                <button
+                  onClick={() => {
+                    setNote(SAMPLE_NOTE);
+                    noteRef.current = SAMPLE_NOTE;
+                    void generate(SAMPLE_NOTE, animal);
+                  }}
+                  className="font-medium text-brand hover:underline"
+                >
                   Probar con un ejemplo
                 </button>
-                {canSpeak && (
-                  <button
-                    onClick={() => setTyping((v) => !v)}
-                    className="text-muted underline-offset-4 hover:text-text hover:underline"
-                  >
+                {speech.supported && (
+                  <button onClick={() => setTyping((v) => !v)} className="text-muted hover:text-ink hover:underline">
                     {typing ? "Prefiero hablar" : "Prefiero escribir"}
                   </button>
                 )}
@@ -304,181 +223,87 @@ export default function Demo() {
             </div>
           )}
 
-          {/* ESCUCHANDO */}
+          {/* 3. ESCUCHANDO */}
           {phase === "listening" && (
-            <div className="flex flex-1 flex-col items-center px-6 pb-8 pt-6 text-center">
-              <div className="flex h-14 items-center gap-1.5" aria-hidden>
+            <div className="flex flex-1 flex-col items-center px-6 pb-7 pt-4 text-center">
+              <Animal id={animal} size={84} className="anim-bob" />
+              <div className="mt-4 flex h-12 items-center gap-1.5" aria-hidden>
                 {Array.from({ length: 15 }).map((_, i) => (
-                  <span
-                    key={i}
-                    className="bar h-full w-1.5 rounded-full bg-gradient-to-t from-accent to-accent-2"
-                    style={{ animationDelay: `${(i % 7) * 0.11}s`, animationDuration: `${0.7 + (i % 5) * 0.12}s` }}
-                  />
+                  <span key={i} className="bar h-full w-1.5 rounded-full" style={{ background: a.color, animationDelay: `${(i % 7) * 0.11}s`, animationDuration: `${0.7 + (i % 5) * 0.12}s` }} />
                 ))}
               </div>
-              <p className="mt-4 text-sm text-muted">Te escucho…</p>
-              <div className="no-scrollbar mt-4 w-full flex-1 overflow-y-auto rounded-2xl border border-line bg-black/25 p-4 text-left text-[15px] leading-relaxed">
-                {note || <span className="text-muted/70">Empieza a hablar con naturalidad.</span>}
-                <span className="anim-caret ml-0.5 inline-block h-4 w-0.5 translate-y-0.5 bg-accent" />
+              <p className="mt-2 text-sm text-muted">{a.defaultName} te escucha…</p>
+              <div className="no-scrollbar mt-4 w-full flex-1 overflow-y-auto rounded-2xl bg-white p-4 text-left text-[15px] leading-relaxed shadow-sm">
+                {note || <span className="text-muted">Empieza a hablar con naturalidad.</span>}
+                {caret}
               </div>
-              <button
-                onClick={stopListening}
-                className="mt-5 flex items-center gap-2 rounded-full bg-white px-6 py-3 font-semibold text-black transition hover:scale-[1.03] active:scale-95"
-              >
-                <span className="h-3 w-3 rounded-sm bg-black" /> Terminar y crear
+              <button onClick={stopVoice} className="btn btn-primary mt-5">
+                <span className="h-3 w-3 rounded-sm bg-white" /> Terminar
               </button>
             </div>
           )}
 
-          {/* PENSANDO */}
+          {/* 4. PENSANDO */}
           {phase === "thinking" && (
-            <div className="flex flex-1 flex-col px-6 pb-8 pt-4 anim-fade-up">
-              <ul className="mt-6 space-y-3.5">
-                {STEPS.map((s, i) => {
+            <div className="anim-fade-up flex flex-1 flex-col items-center px-7 pb-8 pt-4">
+              <Animal id={animal} size={92} className="anim-bob" />
+              <ul className="mt-6 w-full space-y-3.5">
+                {steps.map((s, i) => {
                   const done = stepIdx > i;
                   const current = stepIdx === i;
                   return (
-                    <li
-                      key={s}
-                      className={`flex items-center gap-3 text-[15px] transition ${
-                        done ? "text-text" : current ? "text-text" : "text-muted/50"
-                      }`}
-                    >
-                      <span
-                        className={`grid h-6 w-6 place-items-center rounded-full border text-xs ${
-                          done
-                            ? "anim-pop border-ok bg-ok/15 text-ok"
-                            : current
-                              ? "border-accent"
-                              : "border-line"
-                        }`}
-                      >
-                        {done ? "✓" : current ? <span className="h-2 w-2 animate-pulse rounded-full bg-accent" /> : ""}
+                    <li key={s} className={`flex items-center gap-3 text-[15px] transition ${done || current ? "text-ink" : "text-muted/60"}`}>
+                      <span className={`grid h-6 w-6 shrink-0 place-items-center rounded-full border text-xs ${done ? "anim-pop border-ok bg-ok/15 text-ok" : current ? "border-brand bg-white" : "border-line bg-white"}`}>
+                        {done ? "✓" : current ? <span className="h-2 w-2 animate-pulse rounded-full bg-brand" /> : ""}
                       </span>
                       {s}
                     </li>
                   );
                 })}
               </ul>
-              <div className="mt-8 space-y-3">
-                <div className="shimmer h-5 w-3/4 rounded-md" />
-                <div className="shimmer h-3 w-full rounded-md" />
-                <div className="shimmer h-3 w-11/12 rounded-md" />
-                <div className="shimmer h-3 w-4/5 rounded-md" />
-                <div className="shimmer mt-5 h-5 w-1/2 rounded-md" />
-                <div className="shimmer h-3 w-full rounded-md" />
-                <div className="shimmer h-3 w-2/3 rounded-md" />
-              </div>
             </div>
           )}
 
-          {/* EMAIL */}
+          {/* 5. EL CORREO */}
           {showEmail && (
             <div className="flex min-h-0 flex-1 flex-col">
-              <div className="shrink-0 border-b border-line px-5 pb-3 pt-1">
-                <p className="text-xs text-muted">
-                  De <span className="text-text">Tu Negocio</span> · Para 3 suscriptores
-                </p>
-                <p className="mt-1 text-[15px] font-semibold leading-snug">
-                  {subject?.text}
-                  {phase === "writing" && lastStarted === 0 && (
-                    <span className="anim-caret ml-0.5 inline-block h-4 w-0.5 translate-y-0.5 bg-accent" />
-                  )}
-                </p>
-                <p className="mt-0.5 text-xs text-muted">{preheader?.text}</p>
+              <div className="flex shrink-0 items-center gap-2.5 border-b border-line px-5 pb-3 pt-1">
+                <Animal id={animal} size={34} />
+                <div className="min-w-0">
+                  <p className="truncate text-[15px] font-semibold leading-snug">
+                    {subject?.text}
+                    {phase === "writing" && lastStarted === 0 && caret}
+                  </p>
+                  <p className="truncate text-xs text-muted">{preheader?.text}</p>
+                </div>
               </div>
-
               <div ref={previewRef} className="no-scrollbar min-h-0 flex-1 overflow-y-auto bg-[#f6f3ee] px-6 py-6 text-[#1b1a1f]">
-                <div className="mb-5 h-1.5 w-12 rounded-full bg-gradient-to-r from-accent to-accent-2" />
-                {bodyBlocks.map((b, i) => {
+                <div className="mb-5 h-1.5 w-12 rounded-full" style={{ background: a.color }} />
+                {body.map((b, i) => {
                   if (!b.started) return null;
-                  const cursor = phase === "writing" && b.idx === lastStarted ? (
-                    <span className="anim-caret ml-0.5 inline-block h-4 w-0.5 translate-y-0.5 bg-accent" />
-                  ) : null;
-                  if (b.kind === "greeting")
-                    return (
-                      <p key={i} className="mb-4 font-serif text-lg font-semibold">
-                        {b.text}
-                        {cursor}
-                      </p>
-                    );
-                  if (b.kind === "h")
-                    return (
-                      <h3 key={i} className="mb-1 mt-5 text-[11px] font-bold uppercase tracking-[0.14em] text-accent">
-                        {b.text}
-                        {cursor}
-                      </h3>
-                    );
-                  if (b.kind === "p")
-                    return (
-                      <p key={i} className="font-serif text-[16px] leading-[1.65]">
-                        {b.text}
-                        {cursor}
-                      </p>
-                    );
-                  if (b.kind === "cta")
-                    return (
-                      <div key={i} className="mt-6">
-                        <span className="inline-block rounded-xl bg-[#1b1a1f] px-4 py-2.5 text-sm font-semibold text-white">
-                          {b.text}
-                          {cursor}
-                        </span>
-                      </div>
-                    );
-                  return (
-                    <p key={i} className="mt-6 font-serif text-[15px] italic text-[#55525c]">
-                      {b.text}
-                      {cursor}
-                    </p>
-                  );
+                  const cursor = phase === "writing" && b.idx === lastStarted ? caret : null;
+                  if (b.kind === "greeting") return <p key={i} className="mb-4 font-serif text-lg font-semibold">{b.text}{cursor}</p>;
+                  if (b.kind === "h") return <h3 key={i} className="mb-1 mt-5 text-[11px] font-bold uppercase tracking-[0.14em]" style={{ color: a.color }}>{b.text}{cursor}</h3>;
+                  if (b.kind === "p") return <p key={i} className="font-serif text-[16px] leading-[1.65]">{b.text}{cursor}</p>;
+                  if (b.kind === "cta") return <div key={i} className="mt-6"><span className="inline-block rounded-xl bg-[#1b1a1f] px-4 py-2.5 text-sm font-semibold text-white">{b.text}{cursor}</span></div>;
+                  return <p key={i} className="mt-6 font-serif text-[15px] italic text-[#55525c]">{b.text}{cursor}</p>;
                 })}
               </div>
-
-              <div className="shrink-0 border-t border-line bg-bg-soft px-5 py-4">
-                {phase === "sent" ? (
-                  <div className="anim-fade-up text-center">
-                    <div className="anim-pop mx-auto mb-2 grid h-10 w-10 place-items-center rounded-full bg-ok/15 text-xl text-ok">
-                      ✓
-                    </div>
-                    <p className="text-sm font-semibold">Enviada a 3 suscriptores de ejemplo</p>
-                    <p className="mt-0.5 text-xs text-muted">Es una demo: no se ha enviado ningún correo real.</p>
-                    <button onClick={reset} className="mt-3 text-sm text-accent underline-offset-4 hover:underline">
-                      Crear otra
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => setPhase("sent")}
-                      disabled={phase !== "done"}
-                      className="flex-1 rounded-2xl bg-white py-3 text-[15px] font-semibold text-black transition hover:scale-[1.01] active:scale-[0.99] disabled:opacity-40"
-                    >
-                      Enviar ahora →
-                    </button>
-                    <button
-                      onClick={() => void generate(note, tone)}
-                      disabled={phase !== "done"}
-                      aria-label="Regenerar"
-                      className="glass rounded-2xl px-4 text-lg transition hover:bg-white/10 disabled:opacity-40"
-                    >
-                      ↻
-                    </button>
-                  </div>
-                )}
+              <div className="shrink-0 border-t border-line bg-white px-5 py-4">
+                <div className="flex gap-2">
+                  <Link href="/login" className="btn btn-primary flex-1" aria-disabled={phase !== "done"} style={phase !== "done" ? { opacity: 0.4, pointerEvents: "none" } : undefined}>
+                    Quiero el mío →
+                  </Link>
+                  <button onClick={() => setPhase("pick")} disabled={phase !== "done"} aria-label="Probar con otro animal" className="btn btn-soft px-4">
+                    ↺
+                  </button>
+                </div>
+                <p className="mt-2 text-center text-xs text-muted">Esto es una demo. Con tu cuenta, {a.defaultName} escribe con tu estilo.</p>
               </div>
             </div>
           )}
         </div>
       </div>
     </div>
-  );
-}
-
-function MicIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden>
-      <rect x="9" y="2.5" width="6" height="11" rx="3" />
-      <path d="M5 11.5a7 7 0 0 0 14 0M12 18.5V22" />
-    </svg>
   );
 }

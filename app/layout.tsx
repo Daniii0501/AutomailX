@@ -2,18 +2,18 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "AutoMailX — Cuenta tu semana, tu newsletter ya está escrita",
+  title: "AutoMailX — Contrata a tu redactor de newsletters",
   description:
-    "Habla 30 segundos y AutoMailX convierte tu nota de voz en una newsletter lista para enviar, con tu tono y diseño cuidado.",
+    "Elige un animal, ponle nombre y cuéntale tu semana. Tu redactor de IA escribe la newsletter con tu estilo; tú la apruebas y la envías.",
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0b0b10",
+  themeColor: "#fbfaf8",
   width: "device-width",
   initialScale: 1,
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="es" className="h-full antialiased">
       <body className="min-h-full flex flex-col">{children}</body>

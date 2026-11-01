@@ -13,6 +13,8 @@ export async function api<T = Record<string, unknown>>(
       body: data === undefined ? undefined : JSON.stringify(data),
     });
     const json = (await res.json().catch(() => ({}))) as T & { error?: string };
+    // Si el servidor falla sin dar un mensaje (error 500), lo decimos claro en vez de quedarnos callados.
+    if (!res.ok && !json.error) json.error = `Error del servidor (${res.status}). Abre /api/health para ver qué falla.`;
     return { ok: res.ok, status: res.status, data: json };
   } catch {
     return { ok: false, status: 0, data: { error: "Sin conexión. Inténtalo de nuevo." } as T & { error?: string } };

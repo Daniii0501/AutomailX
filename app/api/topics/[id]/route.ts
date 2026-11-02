@@ -16,9 +16,9 @@ export async function PATCH(req: Request, ctx: Ctx) {
   if (!(await getWriter(user.id, t.writerId))) return json({ error: "Redactor no encontrado." }, 404);
 
   const n = await run(
-    `UPDATE topics SET writer_id=?, title=?, notes=?, format=?, scheduled_day=?, mode=?, status=?, error=NULL, updated_at=?
+    `UPDATE topics SET writer_id=?, title=?, notes=?, format=?, scheduled_day=?, send_hour=?, mode=?, status=?, error=NULL, updated_at=?
      WHERE id=? AND user_id=? AND status IN ('idea','scheduled','failed')`,
-    [t.writerId, t.title, t.notes, t.format, t.day, t.mode, t.day ? "scheduled" : "idea", now(), id, user.id],
+    [t.writerId, t.title, t.notes, t.format, t.day, t.hour, t.mode, t.day ? "scheduled" : "idea", now(), id, user.id],
   );
   if (n === 0) return json({ error: "Este tema ya no se puede editar." }, 409);
   return json({ ok: true });

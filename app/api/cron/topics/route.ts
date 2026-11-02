@@ -1,13 +1,13 @@
 import { q } from "@/lib/db";
 import { mailEnabled, sendMail, simpleMail } from "@/lib/email";
 import { runTopic } from "@/lib/topic-run";
-import { madridToday, type Topic } from "@/lib/topics";
+import { madridHour, madridToday, type Topic } from "@/lib/topics";
 import { baseUrl, json } from "@/lib/util";
 
 export const maxDuration = 300;
 
 /**
- * Cron diario: escribe los temas cuyo día ha llegado (o ya pasó, si algún día falló).
+ * Cron (cada hora si hay un llamador externo; si no, una vez al día): escribe los temas cuyo día ha llegado (o ya pasó, si algún día falló).
  * Vercel lo llama con `Authorization: Bearer CRON_SECRET`.
  */
 export async function GET(req: Request) {
@@ -21,9 +21,9 @@ export async function GET(req: Request) {
   const started = Date.now();
   const due = await q<Topic & { email: string }>(
     `SELECT t.*, u.email AS email FROM topics t JOIN users u ON u.id = t.user_id
-     WHERE t.status = 'scheduled' AND t.scheduled_day <= ?
+     WHERE t.status = 'scheduled' AND (t.scheduled_day < ? OR (t.scheduled_day = ? AND t.send_hour <= ?))
      ORDER BY t.scheduled_day, t.created_at LIMIT 40`,
-    [madridToday()],
+    [madridToday(), madridToday(), madridHour()],
   );
 
   const base = await baseUrl();

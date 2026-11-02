@@ -58,6 +58,7 @@ const COLUMNS: [string, string, string][] = [
   ["writers", "profile", "TEXT NOT NULL DEFAULT '{}'"],
   ["writers", "format", "TEXT NOT NULL DEFAULT 'auto'"],
   ["newsletters", "format", "TEXT NOT NULL DEFAULT 'auto'"],
+  ["topics", "send_hour", "INTEGER NOT NULL DEFAULT 8"],
 ];
 
 const INDEXES: [string, string][] = [
@@ -68,7 +69,7 @@ const INDEXES: [string, string][] = [
 ];
 
 /** Súbelo cuando cambie el esquema: las instancias que ven la versión al día no tocan nada. */
-const SCHEMA_VERSION = 4;
+const SCHEMA_VERSION = 5;
 const META = "amx_meta";
 
 const rowsOf = async (tx: { unsafe: postgres.Sql["unsafe"] }, text: string) => (await tx.unsafe(text)) as unknown as Record<string, string>[];

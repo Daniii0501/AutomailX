@@ -25,6 +25,7 @@ export default async function TopicsPage() {
     notes: t.notes,
     format: t.format,
     scheduled_day: t.scheduled_day,
+    send_hour: t.send_hour,
     mode: t.mode,
     status: t.status,
     newsletter_id: t.newsletter_id,

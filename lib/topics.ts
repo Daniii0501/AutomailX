@@ -12,6 +12,7 @@ export type Topic = {
   notes: string;
   format: FormatId;
   scheduled_day: string | null;
+  send_hour: number;
   mode: "draft" | "send";
   status: TopicStatus;
   newsletter_id: string | null;
@@ -25,7 +26,10 @@ export const MAX_TOPICS = 200;
 /** El día de hoy en España (YYYY-MM-DD). La programación es por día, a primera hora. */
 export const madridToday = () => new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Madrid" });
 
-export type TopicInput = { title: string; notes: string; writerId: string; format: FormatId; day: string | null; mode: "draft" | "send" };
+/** La hora actual en España (0-23). */
+export const madridHour = () => Number(new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Madrid", hour: "2-digit", hourCycle: "h23" }).format(new Date()));
+
+export type TopicInput = { title: string; notes: string; writerId: string; format: FormatId; day: string | null; hour: number; mode: "draft" | "send" };
 
 export function parseTopic(b: Record<string, unknown>): TopicInput | string {
   const title = clean(b.title, 120);
@@ -39,6 +43,8 @@ export function parseTopic(b: Record<string, unknown>): TopicInput | string {
     if (b.day < madridToday()) return "Elige hoy o un día futuro.";
     day = b.day;
   }
+  const h = typeof b.hour === "number" ? b.hour : Number(b.hour ?? 8);
+  if (!Number.isInteger(h) || h < 0 || h > 23) return "La hora no es válida.";
   const writerId = typeof b.writerId === "string" ? b.writerId : "";
   if (!writerId) return "Elige un redactor.";
   return {
@@ -47,6 +53,7 @@ export function parseTopic(b: Record<string, unknown>): TopicInput | string {
     writerId,
     format: isFormat(b.format) ? b.format : "auto",
     day,
+    hour: h,
     mode: b.mode === "send" ? "send" : "draft",
   };
 }

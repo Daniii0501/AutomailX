@@ -15,6 +15,7 @@ export type TopicView = {
   notes: string;
   format: FormatId;
   scheduled_day: string | null;
+  send_hour: number;
   mode: "draft" | "send";
   status: "idea" | "scheduled" | "running" | "drafted" | "sent" | "failed";
   newsletter_id: string | null;
@@ -23,13 +24,13 @@ export type TopicView = {
 
 export type TopicWriter = { id: string; name: string; kind: "animal" | "custom"; animal: AnimalId; avatar: string; color: string; format: FormatId };
 
-type Form = { id: string | null; title: string; notes: string; writerId: string; format: FormatId; day: string; mode: "draft" | "send" };
+type Form = { id: string | null; title: string; notes: string; writerId: string; format: FormatId; day: string; hour: number; mode: "draft" | "send" };
 
 const dayLabel = (d: string) => new Date(`${d}T12:00:00`).toLocaleDateString("es-ES", { weekday: "short", day: "numeric", month: "short" });
 
 export default function TopicsManager({ topics, writers, today, confirmed }: { topics: TopicView[]; writers: TopicWriter[]; today: string; confirmed: number }) {
   const router = useRouter();
-  const blank = (): Form => ({ id: null, title: "", notes: "", writerId: writers[0].id, format: writers[0].format, day: "", mode: "draft" });
+  const blank = (): Form => ({ id: null, title: "", notes: "", writerId: writers[0].id, format: writers[0].format, day: "", hour: 8, mode: "draft" });
   const [f, setF] = useState<Form>(blank);
   const [busy, setBusy] = useState(false);
   const [working, setWorking] = useState<string | null>(null);
@@ -47,7 +48,7 @@ export default function TopicsManager({ topics, writers, today, confirmed }: { t
   }
 
   function edit(t: TopicView) {
-    setF({ id: t.id, title: t.title, notes: t.notes, writerId: t.writer_id, format: t.format, day: t.scheduled_day ?? "", mode: t.mode });
+    setF({ id: t.id, title: t.title, notes: t.notes, writerId: t.writer_id, format: t.format, day: t.scheduled_day ?? "", hour: t.send_hour, mode: t.mode });
     setOpen(true);
     setMsg(null);
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -57,7 +58,7 @@ export default function TopicsManager({ topics, writers, today, confirmed }: { t
     e.preventDefault();
     setBusy(true);
     setMsg(null);
-    const payload = { title: f.title, notes: f.notes, writerId: f.writerId, format: f.format, day: f.day || null, mode: f.mode };
+    const payload = { title: f.title, notes: f.notes, writerId: f.writerId, format: f.format, day: f.day || null, hour: f.hour, mode: f.mode };
     const r = f.id ? await api(`/api/topics/${f.id}`, "PATCH", payload) : await api("/api/topics", "POST", payload);
     setBusy(false);
     if (!r.ok) return setMsg({ ok: false, text: r.data.error ?? "No se pudo guardar." });
@@ -97,7 +98,7 @@ export default function TopicsManager({ topics, writers, today, confirmed }: { t
             <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
               {t.scheduled_day && (
                 <span className="rounded-full bg-brand/10 px-2.5 py-1 font-medium text-brand">
-                  {t.scheduled_day === today ? "Hoy" : dayLabel(t.scheduled_day)}
+                  {t.scheduled_day === today ? "Hoy" : dayLabel(t.scheduled_day)} · {String(t.send_hour).padStart(2, "0")}:00
                 </span>
               )}
               {t.status !== "idea" && t.scheduled_day && (
@@ -169,11 +170,21 @@ export default function TopicsManager({ topics, writers, today, confirmed }: { t
             </div>
           </div>
 
-          <div>
-            <label htmlFor="t-day" className="mb-2 block text-sm font-medium">Día para escribirlo <span className="font-normal text-muted">(opcional)</span></label>
-            <input id="t-day" type="date" min={today} value={f.day} onChange={(e) => setF({ ...f, day: e.target.value })} className="input" />
-            <p className="mt-1.5 text-xs text-muted">Ese día, a primera hora (hora de España), tu redactor lo escribe y te avisa por correo. Sin día, queda en el banco de ideas.</p>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label htmlFor="t-day" className="mb-2 block text-sm font-medium">Día <span className="font-normal text-muted">(opcional)</span></label>
+              <input id="t-day" type="date" min={today} value={f.day} onChange={(e) => setF({ ...f, day: e.target.value })} className="input" />
+            </div>
+            {f.day && (
+              <div>
+                <label htmlFor="t-hour" className="mb-2 block text-sm font-medium">Hora (España)</label>
+                <select id="t-hour" value={f.hour} onChange={(e) => setF({ ...f, hour: Number(e.target.value) })} className="input">
+                  {Array.from({ length: 24 }, (_, h) => (<option key={h} value={h}>{String(h).padStart(2, "0")}:00</option>))}
+                </select>
+              </div>
+            )}
           </div>
+          <p className="-mt-2 text-xs text-muted">Ese día y a esa hora tu redactor lo escribe (y lo envía, si lo eliges) y te avisa por correo. Sin día, queda en el banco de ideas.</p>
 
           {f.day && (
             <fieldset>

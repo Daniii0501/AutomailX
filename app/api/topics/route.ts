@@ -17,9 +17,9 @@ export async function POST(req: Request) {
 
   const id = uid();
   await run(
-    `INSERT INTO topics(id,user_id,writer_id,title,notes,format,scheduled_day,mode,status,created_at,updated_at)
-     VALUES(?,?,?,?,?,?,?,?,?,?,?)`,
-    [id, user.id, t.writerId, t.title, t.notes, t.format, t.day, t.mode, t.day ? "scheduled" : "idea", now(), now()],
+    `INSERT INTO topics(id,user_id,writer_id,title,notes,format,scheduled_day,send_hour,mode,status,created_at,updated_at)
+     VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`,
+    [id, user.id, t.writerId, t.title, t.notes, t.format, t.day, t.hour, t.mode, t.day ? "scheduled" : "idea", now(), now()],
   );
   return json({ id });
 }

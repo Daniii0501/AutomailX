@@ -4,6 +4,9 @@ import { mailEnabled } from "@/lib/email";
 
 export const metadata = { title: "AutoMailX" };
 
+// Las pantallas solo leen la base de datos: si tardan más, algo va mal y es mejor fallar pronto.
+export const maxDuration = 30;
+
 export default async function PanelLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
 

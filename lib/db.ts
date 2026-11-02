@@ -111,7 +111,7 @@ export async function one<T>(table: string, params: Params = {}): Promise<T | nu
 
 /** Número de filas que cumplen los filtros. */
 export async function count(table: string, params: Params = {}): Promise<number> {
-  const res = await request("GET", table, { params: { select: "*", ...params, limit: 0 }, prefer: ["count=exact"] });
+  const res = await request("HEAD", table, { params: { select: "*", ...params }, prefer: ["count=exact"] });
   const range = res.headers.get("content-range") ?? "";
   const total = Number(range.split("/")[1]);
   return Number.isFinite(total) ? total : 0;

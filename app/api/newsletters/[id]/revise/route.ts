@@ -2,11 +2,12 @@ import { body, guard } from "@/lib/api";
 import { reviseNewsletter } from "@/lib/ai";
 import { getNewsletter, getWriter } from "@/lib/data";
 import { run } from "@/lib/db";
+import { isFormat } from "@/lib/formats";
 import { FREE } from "@/lib/plans";
 import { hit } from "@/lib/rate";
 import { clean, json, now } from "@/lib/util";
 
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -29,7 +30,12 @@ export async function POST(req: Request, ctx: Ctx) {
     return json({ error: "Has llegado al límite de cambios de hoy. Vuelve mañana." }, 429);
   }
 
-  const { newsletter, source } = await reviseNewsletter(n.content, instruction, writer);
+  const { newsletter, source } = await reviseNewsletter(
+    n.content,
+    instruction,
+    { ...writer, format: isFormat(n.format) ? n.format : writer.format },
+    n.brief,
+  );
   await run("UPDATE newsletters SET content = ?, source = ?, updated_at = ? WHERE id = ? AND user_id = ? AND status = 'draft'", [
     JSON.stringify(newsletter),
     source,

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import Animal from "@/components/Animal";
+import WriterAvatar from "@/components/WriterAvatar";
 import { requireUser } from "@/lib/auth";
 import { getWriters, listNewsletters } from "@/lib/data";
 
@@ -22,7 +22,7 @@ export default async function HistoryPage() {
             return (
               <li key={n.id}>
                 <Link href={`/panel/n/${n.id}`} className="card flex items-center gap-4 p-4 transition hover:shadow-lg">
-                  {w ? <Animal id={w.animal} size={44} className="shrink-0" /> : <div className="h-11 w-11 shrink-0 rounded-full bg-line" />}
+                  {w ? <WriterAvatar w={w} size={44} className="shrink-0" /> : <div className="h-11 w-11 shrink-0 rounded-full bg-line" />}
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-medium">{n.content.subject}</p>
                     <p className="text-sm text-muted">

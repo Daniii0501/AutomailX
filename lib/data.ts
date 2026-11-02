@@ -1,7 +1,8 @@
 import { isAnimal, type AnimalId } from "./animals";
 import { q, q1 } from "./db";
+import { isFormat, type FormatId } from "./formats";
 import type { Newsletter, WriterProfile } from "./newsletter";
-import { sanitizeNewsletter } from "./newsletter";
+import { EMPTY_CUSTOM, sanitizeNewsletter, type CustomProfile } from "./newsletter";
 
 export type Writer = WriterProfile & { id: string; user_id: string; created_at: number };
 
@@ -24,6 +25,7 @@ export type NewsletterRow = {
   delivery: string | null;
   recipients: number;
   source: string;
+  format: string;
   created_at: number;
   updated_at: number;
   sent_at: number | null;
@@ -51,12 +53,40 @@ type RawWriter = {
   emojis: number;
   sample: string;
   created_at: number;
+  kind: string;
+  avatar: string;
+  color: string;
+  profile: string;
+  format: string;
 };
+
+function parseCustom(raw: string): CustomProfile {
+  try {
+    const o = JSON.parse(raw) as Partial<CustomProfile>;
+    const s = (x: unknown) => (typeof x === "string" ? x : "");
+    const n = (x: unknown, d: number) => (typeof x === "number" && Number.isFinite(x) ? Math.max(0, Math.min(100, x)) : d);
+    return {
+      voice: s(o.voice),
+      audience: s(o.audience),
+      dos: s(o.dos),
+      donts: s(o.donts),
+      phrases: s(o.phrases),
+      greeting: s(o.greeting),
+      signoff: s(o.signoff),
+      humor: n(o.humor, EMPTY_CUSTOM.humor),
+      emotion: n(o.emotion, EMPTY_CUSTOM.emotion),
+      language: o.language === "es-419" || o.language === "en" ? o.language : "es-ES",
+    };
+  } catch {
+    return { ...EMPTY_CUSTOM };
+  }
+}
 
 function toWriter(r: RawWriter): Writer {
   return {
     id: r.id,
     user_id: r.user_id,
+    kind: r.kind === "custom" ? "custom" : "animal",
     animal: (isAnimal(r.animal) ? r.animal : "zorro") as AnimalId,
     name: r.name,
     about: r.about,
@@ -64,6 +94,10 @@ function toWriter(r: RawWriter): Writer {
     length: (["corto", "medio", "largo"].includes(r.length) ? r.length : "medio") as Writer["length"],
     emojis: r.emojis,
     sample: r.sample,
+    format: (isFormat(r.format) ? r.format : "auto") as FormatId,
+    avatar: r.avatar ?? "",
+    color: r.color ?? "",
+    custom: parseCustom(r.profile ?? "{}"),
     created_at: r.created_at,
   };
 }

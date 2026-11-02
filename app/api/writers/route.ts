@@ -17,8 +17,9 @@ export async function POST(req: Request) {
   }
   const id = uid();
   await run(
-    "INSERT INTO writers(id,user_id,animal,name,about,formality,length,emojis,sample,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)",
-    [id, user.id, w.animal, w.name, w.about, w.formality, w.length, w.emojis, w.sample, now()],
+    `INSERT INTO writers(id,user_id,kind,animal,name,about,formality,length,emojis,sample,format,avatar,color,profile,created_at)
+     VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    [id, user.id, w.kind, w.animal, w.name, w.about, w.formality, w.length, w.emojis, w.sample, w.format, w.avatar, w.color, JSON.stringify(w.profile), now()],
   );
   return json({ id });
 }

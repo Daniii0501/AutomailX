@@ -14,8 +14,9 @@ export async function PATCH(req: Request, ctx: Ctx) {
   if (typeof w === "string") return json({ error: w }, 400);
 
   const n = await run(
-    "UPDATE writers SET animal=?, name=?, about=?, formality=?, length=?, emojis=?, sample=? WHERE id=? AND user_id=?",
-    [w.animal, w.name, w.about, w.formality, w.length, w.emojis, w.sample, id, user.id],
+    `UPDATE writers SET kind=?, animal=?, name=?, about=?, formality=?, length=?, emojis=?, sample=?, format=?, avatar=?, color=?, profile=?
+     WHERE id=? AND user_id=?`,
+    [w.kind, w.animal, w.name, w.about, w.formality, w.length, w.emojis, w.sample, w.format, w.avatar, w.color, JSON.stringify(w.profile), id, user.id],
   );
   if (n === 0) return json({ error: "No encontrado." }, 404);
   return json({ ok: true });

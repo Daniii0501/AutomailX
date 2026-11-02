@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import Animal from "@/components/Animal";
+import WriterAvatar from "@/components/WriterAvatar";
 import { useSpeech } from "@/components/useSpeech";
-import { ANIMALS, type AnimalId } from "@/lib/animals";
+import type { AnimalId } from "@/lib/animals";
 import { api } from "@/lib/client";
+import { lookOf } from "@/lib/look";
 import type { Newsletter } from "@/lib/newsletter";
 
 type Props = {
@@ -17,7 +18,9 @@ type Props = {
   sentAt: number | null;
   initial: Newsletter;
   brief: string;
-  writer: { name: string; animal: AnimalId };
+  writer: { name: string; kind: "animal" | "custom"; animal: AnimalId; avatar: string; color: string };
+  source: string;
+  warnings: string[];
   publicationName: string;
   confirmed: number;
   userEmail: string;
@@ -63,7 +66,7 @@ function AutoText({
 
 export default function Editor(p: Props) {
   const router = useRouter();
-  const a = ANIMALS[p.writer.animal];
+  const look = lookOf(p.writer);
   const readOnly = p.status !== "draft";
 
   const [n, setN] = useState<Newsletter>(p.initial);
@@ -177,6 +180,17 @@ export default function Editor(p: Props) {
         </div>
       )}
 
+      {!readOnly && p.source === "simulated" && (
+        <div role="note" className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <b>Este borrador lo ha hecho el modo simulado.</b> Solo reordena tus frases y no sabe escribir de verdad. Para que {p.writer.name} redacte con oficio, hay que conectar la IA (<code>ANTHROPIC_API_KEY</code>).
+        </div>
+      )}
+      {!readOnly && p.warnings.length > 0 && (
+        <div role="note" className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <b>Revisa estas cifras:</b> {p.warnings.join(", ")}. No aparecen en lo que le contaste a {p.writer.name}; asegúrate de que son ciertas o quítalas.
+        </div>
+      )}
+
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
         {/* ---- El correo ---- */}
         <div>
@@ -192,10 +206,10 @@ export default function Editor(p: Props) {
           </div>
 
           <article className="overflow-hidden rounded-3xl border border-line bg-[#f6f3ee] shadow-sm">
-            <div className="h-1.5" style={{ background: a.color }} />
+            <div className="h-1.5" style={{ background: look.color }} />
             <div className="px-6 py-8 text-[#1b1a1f] sm:px-10">
               <p className="mb-4 flex items-center gap-2 text-[13px] font-semibold text-[#6b6b76]">
-                <span aria-hidden>{a.emoji}</span> {p.publicationName}
+                <span aria-hidden>{look.emoji}</span> {p.publicationName}
               </p>
               <AutoText value={n.greeting} readOnly={readOnly} label="Saludo" onChange={(v) => edit({ ...n, greeting: v })} className="mb-3 font-serif text-2xl font-bold leading-snug" />
 
@@ -236,7 +250,7 @@ export default function Editor(p: Props) {
           {!readOnly ? (
             <div className="card p-5">
               <div className="flex items-center gap-3">
-                <Animal id={p.writer.animal} size={48} className={revising ? "anim-bob" : ""} />
+                <WriterAvatar w={p.writer} size={48} className={revising ? "anim-bob" : ""} />
                 <div>
                   <p className="font-semibold">{revising ? `${p.writer.name} está en ello…` : `Pídele cambios a ${p.writer.name}`}</p>
                   <p className="text-xs text-muted">O edita el texto directamente.</p>
@@ -302,7 +316,7 @@ export default function Editor(p: Props) {
       {confirm && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-5 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="ctitle">
           <div className="card anim-pop w-full max-w-sm p-7 text-center">
-            <Animal id={p.writer.animal} size={72} className="mx-auto" />
+            <WriterAvatar w={p.writer} size={72} className="mx-auto" />
             <h2 id="ctitle" className="mt-4 text-xl font-semibold">¿Enviamos la newsletter?</h2>
             <p className="mt-2 text-sm text-muted">
               Se enviará a <b className="text-ink">{p.confirmed} {p.confirmed === 1 ? "persona" : "personas"}</b> y no se puede deshacer.

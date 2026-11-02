@@ -1,5 +1,5 @@
 import Link from "next/link";
-import Animal from "@/components/Animal";
+import WriterAvatar from "@/components/WriterAvatar";
 import SettingsForm from "@/components/SettingsForm";
 import { requireUser } from "@/lib/auth";
 import { getPublication, getWriters } from "@/lib/data";
@@ -19,7 +19,7 @@ export default async function SettingsPage() {
             {writers.map((w) => (
               <li key={w.id}>
                 <Link href={`/panel/redactores/${w.id}`} className="flex items-center gap-3 rounded-2xl p-2 transition hover:bg-black/[0.03]">
-                  <Animal id={w.animal} size={44} />
+                  <WriterAvatar w={w} size={44} />
                   <span className="font-medium">{w.name}</span>
                   <span className="ml-auto text-sm text-muted">Ajustar ›</span>
                 </Link>

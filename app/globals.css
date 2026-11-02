@@ -109,7 +109,8 @@ h1, h2, h3 {
   cursor: pointer;
 }
 .chip:hover:not(:disabled) { background: #f4f2ef; }
-.chip[aria-pressed="true"] { background: var(--ink); color: #fff; border-color: var(--ink); }
+.chip[aria-pressed="true"],
+.chip[aria-pressed="true"]:hover:not(:disabled) { background: var(--ink); color: #fff; border-color: var(--ink); }
 .chip:disabled { opacity: 0.4; cursor: not-allowed; }
 
 /* --- animaciones --- */

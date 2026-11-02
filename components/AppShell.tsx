@@ -7,6 +7,7 @@ import { api } from "@/lib/client";
 
 const NAV = [
   { href: "/panel", label: "Inicio", icon: "M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z" },
+  { href: "/panel/temas", label: "Temas", icon: "M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01" },
   { href: "/panel/audiencia", label: "Audiencia", icon: "M16 11a4 4 0 1 0-8 0M4 21a8 8 0 0 1 16 0" },
   { href: "/panel/historial", label: "Historial", icon: "M12 7v5l3 2M21 12a9 9 0 1 1-3-6.7M21 4v5h-5" },
   { href: "/panel/ajustes", label: "Ajustes", icon: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19 12a7 7 0 0 0-.1-1.2l2-1.6-2-3.4-2.4 1a7 7 0 0 0-2-1.2L14 3h-4l-.5 2.6a7 7 0 0 0-2 1.2l-2.4-1-2 3.4 2 1.6A7 7 0 0 0 5 12c0 .4 0 .8.1 1.2l-2 1.6 2 3.4 2.4-1a7 7 0 0 0 2 1.2L10 21h4l.5-2.6a7 7 0 0 0 2-1.2l2.4 1 2-3.4-2-1.6c.1-.4.1-.8.1-1.2z" },
@@ -73,7 +74,7 @@ export default function AppShell({
       <main className="mx-auto w-full max-w-5xl flex-1 px-5 pb-28 pt-8 md:pb-14">{children}</main>
 
       <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-bg/90 backdrop-blur-xl md:hidden" aria-label="Principal móvil">
-        <div className="mx-auto grid max-w-md grid-cols-4 px-2 pb-[max(0.4rem,env(safe-area-inset-bottom))] pt-2">
+        <div className="mx-auto grid max-w-md grid-cols-5 px-2 pb-[max(0.4rem,env(safe-area-inset-bottom))] pt-2">
           {NAV.map((n) => (
             <Link
               key={n.href}

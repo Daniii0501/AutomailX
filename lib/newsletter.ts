@@ -1,4 +1,5 @@
 import { ANIMALS, type AnimalId } from "./animals";
+import type { FormatId } from "./formats";
 
 export type Newsletter = {
   subject: string;
@@ -10,7 +11,35 @@ export type Newsletter = {
   signoff: string;
 };
 
+export type CustomProfile = {
+  voice: string; // cómo escribe / su personalidad
+  audience: string; // quién lo lee
+  dos: string; // siempre haz
+  donts: string; // nunca hagas / palabras prohibidas
+  phrases: string; // expresiones propias
+  greeting: string; // cómo saluda
+  signoff: string; // cómo se despide
+  humor: number; // 0 serio … 100 muy gracioso
+  emotion: number; // 0 racional … 100 muy emotivo
+  language: "es-ES" | "es-419" | "en";
+};
+
+export const EMPTY_CUSTOM: CustomProfile = {
+  voice: "",
+  audience: "",
+  dos: "",
+  donts: "",
+  phrases: "",
+  greeting: "",
+  signoff: "",
+  humor: 40,
+  emotion: 50,
+  language: "es-ES",
+};
+
 export type WriterProfile = {
+  kind: "animal" | "custom";
+  /** Para los redactores a medida se usa solo como base de color y plantillas. */
   animal: AnimalId;
   name: string;
   about: string;
@@ -18,7 +47,28 @@ export type WriterProfile = {
   length: "corto" | "medio" | "largo";
   emojis: number; // 0 ninguno, 1 algunos, 2 muchos
   sample: string;
+  format: FormatId; // estilo de copy por defecto
+  avatar: string; // emoji (solo a medida)
+  color: string; // color (solo a medida)
+  custom: CustomProfile;
 };
+
+/** Un perfil con todos los campos, a partir de lo mínimo. */
+export function baseProfile(p: Partial<WriterProfile> & { animal: AnimalId; name: string }): WriterProfile {
+  return {
+    kind: "animal",
+    about: "",
+    formality: 35,
+    length: "medio",
+    emojis: 1,
+    sample: "",
+    format: "auto",
+    avatar: "",
+    color: "",
+    custom: { ...EMPTY_CUSTOM },
+    ...p,
+  };
+}
 
 export const SAMPLE_NOTE =
   "Esta semana lancé la nueva carta de otoño en la cafetería y la gente se ha vuelto loca con el café de especialidad de Etiopía. Cerramos el sábado por una boda. El viernes hacemos catas gratis a las seis. Quiero agradecer a los clientes de siempre y contar que abrimos una segunda terraza.";
@@ -68,16 +118,17 @@ export function simulateNewsletter(note: string, w: WriterProfile): Newsletter {
     groups.push(bodies.slice(i, i + per));
   }
 
+  const own = w.kind === "custom" ? w.custom : null;
   return {
     subject: shorten(cap(first), 60) + (w.emojis >= 2 ? ` ${a.emoji}` : ""),
     preheader: shorten(rest[0] ? cap(rest[0]) : "Lo que tienes que saber esta semana", 90),
-    greeting: a.greet[formal] + (formal ? "" : emoji),
+    greeting: own?.greeting || a.greet[formal] + (formal ? "" : emoji),
     sections: groups.map((g, i) => ({
       title: a.headings[i] ?? a.headings[a.headings.length - 1],
       body: g.map((s) => `${cap(s)}.`).join(" "),
     })),
     cta: a.cta[formal],
-    signoff: a.sign[formal],
+    signoff: own?.signoff || a.sign[formal],
   };
 }
 

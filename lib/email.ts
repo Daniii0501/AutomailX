@@ -1,4 +1,4 @@
-import { ANIMALS, type AnimalId } from "./animals";
+import type { Look } from "./look";
 import type { Newsletter } from "./newsletter";
 import { esc } from "./util";
 
@@ -77,7 +77,7 @@ export async function sendBatch(mails: Mail[]): Promise<SendResult> {
 }
 
 type Ctx = {
-  animal: AnimalId;
+  look: Look;
   senderName: string;
   publicationName: string;
   unsubscribeUrl: string;
@@ -86,8 +86,7 @@ type Ctx = {
 };
 
 export function renderNewsletter(n: Newsletter, c: Ctx): { html: string; text: string } {
-  const a = ANIMALS[c.animal];
-  const accent = a.color;
+  const accent = c.look.color;
   const sections = n.sections
     .map(
       (s) => `
@@ -113,7 +112,7 @@ export function renderNewsletter(n: Newsletter, c: Ctx): { html: string; text: s
 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f4f2ef;"><tr><td align="center" style="padding:28px 12px;">
 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:580px;background:#ffffff;border-radius:20px;overflow:hidden;">
   <tr><td style="height:6px;background:${accent};font-size:0;line-height:0;">&nbsp;</td></tr>
-  <tr><td style="padding:26px 36px 0 36px;font:600 13px/1.3 -apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:#6b6b76;">${a.emoji}&nbsp; ${esc(c.publicationName)}</td></tr>
+  <tr><td style="padding:26px 36px 0 36px;font:600 13px/1.3 -apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:#6b6b76;">${esc(c.look.emoji)}&nbsp; ${esc(c.publicationName)}</td></tr>
   <tr><td style="padding:14px 36px 0 36px;font:700 22px/1.3 Georgia,'Times New Roman',serif;color:#1d1d1f;">${esc(n.greeting)}</td></tr>
   ${sections}
   ${cta}

@@ -22,6 +22,7 @@ export default function Demo() {
   const [newsletter, setNewsletter] = useState<Newsletter | null>(null);
   const [shown, setShown] = useState(0);
   const [stepIdx, setStepIdx] = useState(0);
+  const [style, setStyle] = useState<string | null>(null);
   const noteRef = useRef("");
   const previewRef = useRef<HTMLDivElement | null>(null);
 
@@ -52,13 +53,14 @@ export default function Demo() {
           setStepIdx(i);
         }
       })();
-      const [res] = await Promise.all([api<{ newsletter?: Newsletter }>("/api/generate", "POST", { note: text, animal: an }), ticker]);
+      const [res] = await Promise.all([api<{ newsletter?: Newsletter; style?: string }>("/api/generate", "POST", { note: text, animal: an }), ticker]);
       if (!res.ok || !res.data.newsletter) {
         setError(res.data.error ?? "No he podido escribirla. Inténtalo de nuevo.");
         setPhase("brief");
         return;
       }
       setNewsletter(res.data.newsletter);
+      setStyle(res.data.style ?? null);
       setPhase("writing");
     },
     [],
@@ -298,7 +300,7 @@ export default function Demo() {
                     ↺
                   </button>
                 </div>
-                <p className="mt-2 text-center text-xs text-muted">Esto es una demo. Con tu cuenta, {a.defaultName} escribe con tu estilo.</p>
+                <p className="mt-2 text-center text-xs text-muted">{style ? `Estilo: ${style}. ` : ""}Con tu cuenta, {a.defaultName} escribe con tu voz y tus notas.</p>
               </div>
             </div>
           )}

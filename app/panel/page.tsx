@@ -1,13 +1,12 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import Animal from "@/components/Animal";
 import Composer from "@/components/Composer";
+import WriterAvatar from "@/components/WriterAvatar";
 import { requireUser } from "@/lib/auth";
 import { countConfirmed, getWriters, listNewsletters } from "@/lib/data";
 import { FREE } from "@/lib/plans";
 
-const fmt = (ms: number) =>
-  new Date(ms).toLocaleDateString("es-ES", { day: "numeric", month: "short" });
+const fmt = (ms: number) => new Date(ms).toLocaleDateString("es-ES", { day: "numeric", month: "short" });
 
 export default async function PanelHome({ searchParams }: { searchParams: Promise<{ w?: string }> }) {
   const user = await requireUser();
@@ -29,7 +28,7 @@ export default async function PanelHome({ searchParams }: { searchParams: Promis
               href={`/panel?w=${x.id}`}
               className={`flex items-center gap-2 rounded-full border py-1.5 pl-1.5 pr-4 text-sm font-medium transition ${x.id === writer.id ? "border-ink bg-white shadow-sm" : "border-line bg-white/60 text-muted hover:text-ink"}`}
             >
-              <Animal id={x.animal} size={30} />
+              <WriterAvatar w={x} size={30} />
               {x.name}
             </Link>
           ))}
@@ -42,7 +41,10 @@ export default async function PanelHome({ searchParams }: { searchParams: Promis
             Ajustar a {writer.name}
           </Link>
         </div>
-        <Composer key={writer.id} writer={{ id: writer.id, name: writer.name, animal: writer.animal }} />
+        <Composer
+          key={writer.id}
+          writer={{ id: writer.id, name: writer.name, kind: writer.kind, animal: writer.animal, avatar: writer.avatar, color: writer.color, format: writer.format }}
+        />
       </section>
 
       {confirmed === 0 && (
@@ -66,7 +68,7 @@ export default async function PanelHome({ searchParams }: { searchParams: Promis
               return (
                 <li key={n.id}>
                   <Link href={`/panel/n/${n.id}`} className="card flex items-center gap-4 p-4 transition hover:shadow-lg">
-                    {wr ? <Animal id={wr.animal} size={44} className="shrink-0" /> : <div className="h-11 w-11 shrink-0 rounded-full bg-line" />}
+                    {wr ? <WriterAvatar w={wr} size={44} className="shrink-0" /> : <div className="h-11 w-11 shrink-0 rounded-full bg-line" />}
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-medium">{n.content.subject}</p>
                       <p className="text-sm text-muted">

@@ -13,7 +13,20 @@ export default async function EditWriter({ params }: { params: Promise<{ id: str
       mode="edit"
       id={w.id}
       canDelete={all.length > 1}
-      initial={{ animal: w.animal, name: w.name, about: w.about, formality: w.formality, length: w.length, emojis: w.emojis, sample: w.sample }}
+      initial={{
+        kind: w.kind,
+        animal: w.animal,
+        name: w.name,
+        about: w.about,
+        formality: w.formality,
+        length: w.length,
+        emojis: w.emojis,
+        sample: w.sample,
+        format: w.format,
+        avatar: w.avatar || "✍️",
+        color: w.color || "#6D4AFF",
+        profile: w.custom,
+      }}
     />
   );
 }

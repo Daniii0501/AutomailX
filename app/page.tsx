@@ -3,11 +3,12 @@ import Animal from "@/components/Animal";
 import Brand from "@/components/Brand";
 import Demo from "@/components/Demo";
 import { ANIMAL_IDS, ANIMALS } from "@/lib/animals";
+import { FORMAT_IDS, FORMATS } from "@/lib/formats";
 import { FREE } from "@/lib/plans";
 
 const STEPS = [
-  { n: "1", title: "Elige a tu redactor", text: "Un animal con personalidad propia. Ponle nombre y enséñale cómo escribes." },
-  { n: "2", title: "Cuéntale tu semana", text: "Con la voz o con texto. Sin plantillas ni páginas en blanco." },
+  { n: "1", title: "Elige a tu redactor", text: "Un animal con personalidad o un copywriter a tu medida. Ponle nombre y enséñale cómo escribes." },
+  { n: "2", title: "Cuéntale tu semana", text: "Con la voz o con texto, y elige el estilo: historia, venta, humor… Sin páginas en blanco." },
   { n: "3", title: "Aprueba y envía", text: "Léelo, pídele cambios hablando y envíalo a tu lista con un toque." },
 ];
 
@@ -16,8 +17,8 @@ const FEATURES = [
   { t: "Tú mandas siempre", d: "Nada se envía sin tu visto bueno. Primero te mandas una prueba a ti." },
   { t: "Suscriptores en regla", d: "Formulario público con confirmación por correo y baja con un clic en cada envío." },
   { t: "Tu estilo, no el de un robot", d: "Pégale un texto tuyo y aprende cómo escribes. Ajusta tono, longitud y emojis." },
-  { t: "Un equipo de redactores", d: "Uno para vender, otro para contar novedades. Cada uno con su voz." },
-  { t: "Recordatorio semanal", d: "El día que elijas, tu redactor te avisa y te espera para que le cuentes la semana." },
+  { t: "Tu propio copywriter", d: "Crea un redactor a tu medida: su voz, sus reglas, lo que nunca diría. Suena a ti, no a un robot." },
+  { t: "Temas que se escriben solos", d: "Apunta tus ideas, elige un día y a primera hora el borrador está listo. Sin acordarte de nada." },
 ];
 
 export default function Home() {
@@ -27,6 +28,7 @@ export default function Home() {
         <Brand />
         <nav className="flex items-center gap-1 text-sm">
           <a href="#equipo" className="hidden rounded-full px-3 py-2 text-muted hover:text-ink sm:block">Redactores</a>
+          <a href="#estilos" className="hidden rounded-full px-3 py-2 text-muted hover:text-ink sm:block">Estilos</a>
           <a href="#como" className="hidden rounded-full px-3 py-2 text-muted hover:text-ink sm:block">Cómo funciona</a>
           <a href="#precio" className="hidden rounded-full px-3 py-2 text-muted hover:text-ink sm:block">Precio</a>
           <Link href="/login" className="btn btn-primary ml-2 !px-5 !py-2.5">Entrar</Link>
@@ -88,6 +90,21 @@ export default function Home() {
           </div>
         </section>
 
+        {/* ESTILOS */}
+        <section id="estilos" className="mx-auto w-full max-w-4xl scroll-mt-8 px-5 py-20 text-center">
+          <h2 className="text-3xl font-bold sm:text-4xl">Cada newsletter, con su estilo de copy</h2>
+          <p className="mx-auto mt-3 max-w-xl text-muted">
+            Tu redactor domina las técnicas de los buenos copywriters: ganchos, historias, estructura y ritmo. Tú solo eliges cómo quieres contarlo.
+          </p>
+          <div className="mt-8 flex flex-wrap justify-center gap-2.5">
+            {FORMAT_IDS.filter((f) => f !== "auto").map((f) => (
+              <span key={f} className="rounded-full border border-line bg-white px-4 py-2 text-sm shadow-sm">
+                <span aria-hidden>{FORMATS[f].emoji}</span> {FORMATS[f].label}
+              </span>
+            ))}
+          </div>
+        </section>
+
         {/* CÓMO FUNCIONA */}
         <section id="como" className="mx-auto w-full max-w-6xl scroll-mt-8 px-5 py-20">
           <h2 className="text-center text-3xl font-bold sm:text-4xl">Tres gestos y está enviada</h2>
@@ -123,7 +140,8 @@ export default function Home() {
               <p className="font-semibold">Gratis</p>
               <p className="mt-1 text-4xl font-bold">0 €</p>
               <ul className="mt-5 space-y-2 text-sm text-muted">
-                <li>✓ Hasta {FREE.writers} redactores</li>
+                <li>✓ Hasta {FREE.writers} redactores (animales o a medida)</li>
+                <li>✓ Temas programados que se escriben solos</li>
                 <li>✓ Hasta {FREE.subscribers} suscriptores</li>
                 <li>✓ {FREE.aiPerDay} borradores o cambios al día</li>
                 <li>✓ Página pública de suscripción</li>
@@ -135,7 +153,7 @@ export default function Home() {
               <p className="mt-1 text-4xl font-bold text-muted">Pronto</p>
               <ul className="mt-5 space-y-2 text-sm text-muted">
                 <li>✓ Más redactores y más suscriptores</li>
-                <li>✓ Envíos programados</li>
+                <li>✓ Envío automático</li>
                 <li>✓ Imágenes y estadísticas</li>
                 <li>✓ Sin “Escrito con AutoMailX”</li>
               </ul>

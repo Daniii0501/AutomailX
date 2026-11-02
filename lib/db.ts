@@ -55,6 +55,23 @@ CREATE TABLE IF NOT EXISTS usage(
   key TEXT NOT NULL, day TEXT NOT NULL, count INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(key, day)
 );
 
+-- Redactores a medida y estilos de copy
+ALTER TABLE writers ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'animal';
+ALTER TABLE writers ADD COLUMN IF NOT EXISTS avatar TEXT NOT NULL DEFAULT '';
+ALTER TABLE writers ADD COLUMN IF NOT EXISTS color TEXT NOT NULL DEFAULT '';
+ALTER TABLE writers ADD COLUMN IF NOT EXISTS profile TEXT NOT NULL DEFAULT '{}';
+ALTER TABLE writers ADD COLUMN IF NOT EXISTS format TEXT NOT NULL DEFAULT 'auto';
+ALTER TABLE newsletters ADD COLUMN IF NOT EXISTS format TEXT NOT NULL DEFAULT 'auto';
+
+-- Temas: banco de ideas y programación por día
+CREATE TABLE IF NOT EXISTS topics(
+  id TEXT PRIMARY KEY, user_id TEXT NOT NULL, writer_id TEXT NOT NULL, title TEXT NOT NULL,
+  notes TEXT NOT NULL DEFAULT '', format TEXT NOT NULL DEFAULT 'auto', scheduled_day TEXT,
+  mode TEXT NOT NULL DEFAULT 'draft', status TEXT NOT NULL DEFAULT 'idea',
+  newsletter_id TEXT, error TEXT, created_at BIGINT NOT NULL, updated_at BIGINT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_topics_user ON topics(user_id, scheduled_day);
+
 -- Seguridad: Supabase expone por API las tablas del esquema public. Con RLS activado y sin
 -- políticas, esa API no puede leer nada; nuestra app entra por conexión directa y no se ve afectada.
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
@@ -65,6 +82,7 @@ ALTER TABLE writers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE subscribers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE newsletters ENABLE ROW LEVEL SECURITY;
 ALTER TABLE usage ENABLE ROW LEVEL SECURITY;
+ALTER TABLE topics ENABLE ROW LEVEL SECURITY;
 `;
 
 /** Quita parámetros que otras herramientas añaden a la dirección y que el driver no entiende. */

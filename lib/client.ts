@@ -1,22 +1,25 @@
-export type ApiResult<T> = { ok: boolean; status: number; data: T & { error?: string } };
-
-/** fetch JSON sencillo para los componentes de cliente. */
-export async function api<T = Record<string, unknown>>(
-  url: string,
-  method: "POST" | "PATCH" | "DELETE",
-  data?: unknown,
-): Promise<ApiResult<T>> {
+/** Llamada a nuestra API desde el navegador. Devuelve los datos o lanza un Error con un mensaje claro. */
+export async function api<T = Record<string, unknown>>(url: string, init: { method?: string; body?: unknown } = {}): Promise<T> {
+  let res: Response;
   try {
-    const res = await fetch(url, {
-      method,
-      headers: { "content-type": "application/json" },
-      body: data === undefined ? undefined : JSON.stringify(data),
+    res = await fetch(url, {
+      method: init.method ?? (init.body === undefined ? "GET" : "POST"),
+      headers: { "content-type": "application/json", accept: "application/json" },
+      body: init.body === undefined ? undefined : JSON.stringify(init.body),
     });
-    const json = (await res.json().catch(() => ({}))) as T & { error?: string };
-    // Si el servidor falla sin dar un mensaje (error 500), lo decimos claro en vez de quedarnos callados.
-    if (!res.ok && !json.error) json.error = `Error del servidor (${res.status}). Abre /api/health para ver qué falla.`;
-    return { ok: res.ok, status: res.status, data: json };
   } catch {
-    return { ok: false, status: 0, data: { error: "Sin conexión. Inténtalo de nuevo." } as T & { error?: string } };
+    throw new Error("Sin conexión. Revisa tu internet y vuelve a intentarlo.");
   }
+  let data: Record<string, unknown> = {};
+  try {
+    data = await res.json();
+  } catch {
+    /* respuesta vacía o no JSON */
+  }
+  if (res.status === 401) {
+    window.location.href = "/login";
+    throw new Error("Tu sesión ha caducado.");
+  }
+  if (!res.ok) throw new Error(typeof data.error === "string" ? data.error : `Algo ha fallado (${res.status}). Vuelve a intentarlo.`);
+  return data as T;
 }

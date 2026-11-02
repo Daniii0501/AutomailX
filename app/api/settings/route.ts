@@ -1,34 +1,17 @@
-import { body, guard } from "@/lib/api";
-import { q1, run } from "@/lib/db";
-import { clean, isEmail, json, normEmail } from "@/lib/util";
+import { eq, update } from "@/lib/db";
+import { authed, fail, json, readBody } from "@/lib/http";
+import { clean, isEmail, normEmail } from "@/lib/util";
 
-export async function PATCH(req: Request) {
-  const user = await guard(req);
-  if (user instanceof Response) return user;
-
-  const b = await body<Record<string, unknown>>(req);
-  const name = clean(b.name, 60);
-  const sender = clean(b.sender_name, 60);
-  const slug = clean(b.slug, 40).toLowerCase();
-  const replyRaw = normEmail(clean(b.reply_to, 254));
-  const cadence = b.cadence_day === null || b.cadence_day === "" ? null : Number(b.cadence_day);
-
-  if (name.length < 2) return json({ error: "Ponle un nombre a tu newsletter." }, 400);
-  if (sender.length < 2) return json({ error: "Escribe cómo quieres que aparezca tu nombre al enviar." }, 400);
-  if (!/^[a-z0-9][a-z0-9-]{2,39}$/.test(slug)) {
-    return json({ error: "El enlace solo puede llevar letras, números y guiones (3 a 40 caracteres)." }, 400);
-  }
-  if (replyRaw && !isEmail(replyRaw)) return json({ error: "El correo de respuesta no es válido." }, 400);
-  if (cadence !== null && !(Number.isInteger(cadence) && cadence >= 0 && cadence <= 6)) {
-    return json({ error: "Día no válido." }, 400);
-  }
-
-  const taken = await q1("SELECT user_id FROM publications WHERE slug = ? AND user_id != ?", [slug, user.id]);
-  if (taken) return json({ error: "Ese enlace ya está en uso. Prueba con otro." }, 409);
-
-  await run(
-    "UPDATE publications SET name=?, sender_name=?, slug=?, reply_to=?, cadence_day=? WHERE user_id=?",
-    [name, sender, slug, replyRaw || null, cadence, user.id],
-  );
+export const PATCH = authed(async (req, user) => {
+  const b = await readBody(req);
+  const name = clean(b.name, 80);
+  const sender = clean(b.senderName, 60).replace(/["<>]/g, "");
+  if (name.length < 2) return fail("Ponle nombre a tu newsletter.");
+  if (sender.length < 2) return fail("Pon el nombre que verán como remitente.");
+  const replyTo = normEmail(b.replyTo);
+  if (replyTo && !isEmail(replyTo)) return fail("El correo de respuesta no es válido.");
+  const day = b.cadenceDay === "" || b.cadenceDay === null || b.cadenceDay === undefined ? null : Number(b.cadenceDay);
+  if (day !== null && !(Number.isInteger(day) && day >= 0 && day <= 6)) return fail("Día no válido.");
+  await update("publications", { user_id: eq(user.id) }, { name, sender_name: sender, reply_to: replyTo || null, cadence_day: day });
   return json({ ok: true });
-}
+});

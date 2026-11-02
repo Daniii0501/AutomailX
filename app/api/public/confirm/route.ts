@@ -1,13 +1,12 @@
-import { body } from "@/lib/api";
-import { run } from "@/lib/db";
-import { json, sameOrigin } from "@/lib/util";
+import { eq, update } from "@/lib/db";
+import { baseUrl, open, readBody } from "@/lib/http";
+import { clean } from "@/lib/util";
 
-/** Confirma una suscripción (doble confirmación). Es un POST para que los filtros de correo no confirmen solos. */
-export async function POST(req: Request) {
-  if (!sameOrigin(req)) return json({ error: "Petición no permitida." }, 403);
-  const { token } = await body<{ token?: string }>(req);
-  if (typeof token !== "string" || !token) return json({ error: "Enlace no válido." }, 400);
-  const n = await run("UPDATE subscribers SET status = 'confirmed' WHERE token = ? AND status IN ('pending','confirmed')", [token]);
-  if (n === 0) return json({ error: "Este enlace no es válido o ya no está activo." }, 404);
-  return json({ ok: true });
-}
+/** Botón "Sí, quiero recibirla" de /c/[token]. */
+export const POST = open(async (req) => {
+  const token = clean((await readBody(req)).token, 100);
+  const ok = token
+    ? (await update("subscribers", { token: eq(token), status: eq("pending") }, { status: "confirmed", confirmed_at: new Date().toISOString() })).length > 0
+    : false;
+  return Response.redirect(`${baseUrl(req)}/c/${encodeURIComponent(token)}?${ok ? "ok=1" : "error=1"}`, 303);
+});

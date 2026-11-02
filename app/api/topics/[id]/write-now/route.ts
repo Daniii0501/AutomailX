@@ -1,23 +1,18 @@
-import { guard } from "@/lib/api";
-import { q1 } from "@/lib/db";
-import { runTopic } from "@/lib/topic-run";
-import type { Topic } from "@/lib/topics";
-import { baseUrl, json } from "@/lib/util";
+import { eq, one } from "@/lib/db";
+import { authed, baseUrl, fail, json } from "@/lib/http";
+import { runTopic, type Topic } from "@/lib/topics";
+import { isUuid } from "@/lib/util";
 
-export const maxDuration = 120;
+export const maxDuration = 180;
 
-type Ctx = { params: Promise<{ id: string }> };
+type P = { id: string };
 
-/** "Escribir ahora": genera el borrador del tema al momento (nunca lo envía: lo revisas tú). */
-export async function POST(req: Request, ctx: Ctx) {
-  const user = await guard(req);
-  if (user instanceof Response) return user;
-  const { id } = await ctx.params;
-
-  const t = await q1<Topic>("SELECT * FROM topics WHERE id = ? AND user_id = ?", [id, user.id]);
-  if (!t) return json({ error: "No encontrado." }, 404);
-
-  const r = await runTopic(t, user, await baseUrl(), { allowSend: false });
-  if (!r.ok) return json({ error: r.error }, r.retry ? 429 : 409);
-  return json({ newsletterId: r.newsletterId });
-}
+/** "Escribir ahora": genera el borrador al momento (nunca envía solo). */
+export const POST = authed<P>(async (req, user, { id }) => {
+  if (!isUuid(id)) return fail("No encontrado.", 404);
+  const t = await one<Topic>("topics", { id: eq(id), user_id: eq(user.id) });
+  if (!t) return fail("No encontrado.", 404);
+  const r = await runTopic(t, user, baseUrl(req), { allowSend: false });
+  if (!r.ok) return fail(r.error, r.retry ? 503 : 409);
+  return json({ ok: true, newsletterId: r.newsletterId });
+});

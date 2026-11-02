@@ -1,34 +1,27 @@
-import { body, guard } from "@/lib/api";
 import { getWriter } from "@/lib/data";
-import { run } from "@/lib/db";
+import { eq, inList, remove, update } from "@/lib/db";
+import { authed, fail, json, readBody } from "@/lib/http";
 import { parseTopic } from "@/lib/topics";
-import { json, now } from "@/lib/util";
+import { isUuid } from "@/lib/util";
 
-type Ctx = { params: Promise<{ id: string }> };
+type P = { id: string };
 
-export async function PATCH(req: Request, ctx: Ctx) {
-  const user = await guard(req);
-  if (user instanceof Response) return user;
-  const { id } = await ctx.params;
-
-  const t = parseTopic(await body(req));
-  if (typeof t === "string") return json({ error: t }, 400);
-  if (!(await getWriter(user.id, t.writerId))) return json({ error: "Redactor no encontrado." }, 404);
-
-  const n = await run(
-    `UPDATE topics SET writer_id=?, title=?, notes=?, format=?, scheduled_day=?, send_hour=?, mode=?, status=?, error=NULL, updated_at=?
-     WHERE id=? AND user_id=? AND status IN ('idea','scheduled','failed')`,
-    [t.writerId, t.title, t.notes, t.format, t.day, t.hour, t.mode, t.day ? "scheduled" : "idea", now(), id, user.id],
+export const PATCH = authed<P>(async (req, user, { id }) => {
+  if (!isUuid(id)) return fail("No encontrado.", 404);
+  const t = parseTopic(await readBody(req));
+  if (typeof t === "string") return fail(t);
+  if (!(await getWriter(user.id, t.writer_id))) return fail("Ese redactor no existe.");
+  const rows = await update(
+    "topics",
+    { id: eq(id), user_id: eq(user.id), status: inList(["idea", "scheduled", "failed"]) },
+    { ...t, status: t.scheduled_day ? "scheduled" : "idea", error: null, updated_at: new Date().toISOString() },
   );
-  if (n === 0) return json({ error: "Este tema ya no se puede editar." }, 409);
+  if (!rows.length) return fail("Este tema ya está escrito y no se puede cambiar.", 409);
   return json({ ok: true });
-}
+});
 
-export async function DELETE(req: Request, ctx: Ctx) {
-  const user = await guard(req);
-  if (user instanceof Response) return user;
-  const { id } = await ctx.params;
-  const n = await run("DELETE FROM topics WHERE id = ? AND user_id = ? AND status != 'running'", [id, user.id]);
-  if (n === 0) return json({ error: "No encontrado." }, 404);
+export const DELETE = authed<P>(async (_req, user, { id }) => {
+  if (!isUuid(id)) return fail("No encontrado.", 404);
+  await remove("topics", { id: eq(id), user_id: eq(user.id) });
   return json({ ok: true });
-}
+});

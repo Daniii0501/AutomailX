@@ -1,19 +1,16 @@
-import Animal from "@/components/Animal";
-import type { AnimalId } from "@/lib/animals";
-import { lookOf } from "@/lib/look";
+import Animal from "./Animal";
+import { isAnimal } from "@/lib/animals";
+import type { Look } from "@/lib/newsletter";
 
-export type AvatarWriter = { kind: "animal" | "custom"; animal: AnimalId; avatar: string; color: string };
-
-/** Cara de un redactor: el animal, o el emoji y color elegidos si es a medida. */
-export default function WriterAvatar({ w, size = 48, className = "" }: { w: AvatarWriter; size?: number; className?: string }) {
-  if (w.kind === "animal") return <Animal id={w.animal} size={size} className={className} />;
-  const look = lookOf(w);
+/** Cara del redactor: el dibujo del animal o, si es a medida, su emoji sobre su color. */
+export default function WriterAvatar({ look, size = 48, className = "" }: { look: Look; size?: number; className?: string }) {
+  if (look.animal && isAnimal(look.animal)) return <Animal id={look.animal} size={size} className={className} title={look.name} />;
   return (
     <span
       role="img"
-      aria-label="Redactor a medida"
-      className={`inline-grid shrink-0 place-items-center rounded-full ${className}`}
-      style={{ width: size, height: size, background: look.soft, boxShadow: `inset 0 0 0 2px ${look.color}55`, fontSize: size * 0.48, lineHeight: 1 }}
+      aria-label={look.name}
+      className={`inline-flex shrink-0 items-center justify-center rounded-full ${className}`}
+      style={{ width: size, height: size, background: `${look.color}26`, fontSize: size * 0.5 }}
     >
       {look.emoji}
     </span>

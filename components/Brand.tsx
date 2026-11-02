@@ -1,17 +1,22 @@
 import Link from "next/link";
 
-export default function Brand({ href = "/", size = "md" }: { href?: string; size?: "sm" | "md" }) {
+export function Logo({ size = 32 }: { size?: number }) {
   return (
-    <Link href={href} className="inline-flex items-center gap-2 font-semibold tracking-tight">
-      <span
-        className={`grid place-items-center rounded-xl bg-gradient-to-br from-brand to-brand-2 text-white ${
-          size === "sm" ? "h-7 w-7 text-sm" : "h-8 w-8 text-base"
-        }`}
-        aria-hidden
-      >
-        ✉
-      </span>
-      <span className={size === "sm" ? "text-base" : "text-lg"}>AutoMailX</span>
+    <span
+      aria-hidden
+      className="inline-flex items-center justify-center rounded-[30%] text-white shadow-sm"
+      style={{ width: size, height: size, fontSize: size * 0.5, background: "linear-gradient(135deg,#6d4aff 0%,#c050d8 55%,#ff8a3d 100%)" }}
+    >
+      ✉
+    </span>
+  );
+}
+
+export default function Brand({ href = "/", size = 30 }: { href?: string; size?: number }) {
+  return (
+    <Link href={href} className="inline-flex items-center gap-2 font-bold tracking-tight text-ink" aria-label="AutoMailX, inicio">
+      <Logo size={size} />
+      <span className="text-[1.05rem]">AutoMailX</span>
     </Link>
   );
 }

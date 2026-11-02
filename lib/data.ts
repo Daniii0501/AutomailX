@@ -1,10 +1,18 @@
-import { isAnimal, type AnimalId } from "./animals";
-import { q, q1 } from "./db";
+import "server-only";
+import { ANIMALS, isAnimal } from "./animals";
+import { eq, inList, one, select } from "./db";
 import { isFormat, type FormatId } from "./formats";
-import type { Newsletter, WriterProfile } from "./newsletter";
-import { EMPTY_CUSTOM, sanitizeNewsletter, type CustomProfile } from "./newsletter";
-
-export type Writer = WriterProfile & { id: string; user_id: string; created_at: number };
+import {
+  EMPTY_CUSTOM,
+  sanitizeNewsletter,
+  writerFromRow,
+  type CustomProfile,
+  type Language,
+  type Look,
+  type Newsletter,
+  type WriterProfile,
+} from "./newsletter";
+import { clean, int, isUuid } from "./util";
 
 export type Publication = {
   user_id: string;
@@ -18,147 +26,94 @@ export type Publication = {
 export type NewsletterRow = {
   id: string;
   user_id: string;
-  writer_id: string;
+  writer_id: string | null;
+  look: Look;
   brief: string;
+  format: FormatId;
   content: Newsletter;
+  warnings: string[];
+  source: "claude" | "simulated";
   status: "draft" | "sending" | "sent";
-  delivery: string | null;
   recipients: number;
-  source: string;
-  format: string;
-  created_at: number;
-  updated_at: number;
-  sent_at: number | null;
+  delivery: string | null;
+  created_at: string;
+  updated_at: string;
+  sent_at: string | null;
 };
-
-export type Subscriber = {
-  id: string;
-  user_id: string;
-  email: string;
-  name: string;
-  status: "pending" | "confirmed" | "unsubscribed";
-  token: string;
-  source: string;
-  created_at: number;
-};
-
-type RawWriter = {
-  id: string;
-  user_id: string;
-  animal: string;
-  name: string;
-  about: string;
-  formality: number;
-  length: string;
-  emojis: number;
-  sample: string;
-  created_at: number;
-  kind: string;
-  avatar: string;
-  color: string;
-  profile: string;
-  format: string;
-};
-
-function parseCustom(raw: string): CustomProfile {
-  try {
-    const o = JSON.parse(raw) as Partial<CustomProfile>;
-    const s = (x: unknown) => (typeof x === "string" ? x : "");
-    const n = (x: unknown, d: number) => (typeof x === "number" && Number.isFinite(x) ? Math.max(0, Math.min(100, x)) : d);
-    return {
-      voice: s(o.voice),
-      audience: s(o.audience),
-      dos: s(o.dos),
-      donts: s(o.donts),
-      phrases: s(o.phrases),
-      greeting: s(o.greeting),
-      signoff: s(o.signoff),
-      humor: n(o.humor, EMPTY_CUSTOM.humor),
-      emotion: n(o.emotion, EMPTY_CUSTOM.emotion),
-      language: o.language === "es-419" || o.language === "en" ? o.language : "es-ES",
-    };
-  } catch {
-    return { ...EMPTY_CUSTOM };
-  }
-}
-
-function toWriter(r: RawWriter): Writer {
-  return {
-    id: r.id,
-    user_id: r.user_id,
-    kind: r.kind === "custom" ? "custom" : "animal",
-    animal: (isAnimal(r.animal) ? r.animal : "zorro") as AnimalId,
-    name: r.name,
-    about: r.about,
-    formality: r.formality,
-    length: (["corto", "medio", "largo"].includes(r.length) ? r.length : "medio") as Writer["length"],
-    emojis: r.emojis,
-    sample: r.sample,
-    format: (isFormat(r.format) ? r.format : "auto") as FormatId,
-    avatar: r.avatar ?? "",
-    color: r.color ?? "",
-    custom: parseCustom(r.profile ?? "{}"),
-    created_at: r.created_at,
-  };
-}
-
-export async function getWriters(userId: string): Promise<Writer[]> {
-  const rows = await q<RawWriter>("SELECT * FROM writers WHERE user_id = ? ORDER BY created_at", [userId]);
-  return rows.map(toWriter);
-}
-
-export async function getWriter(userId: string, id: string): Promise<Writer | null> {
-  const r = await q1<RawWriter>("SELECT * FROM writers WHERE id = ? AND user_id = ?", [id, userId]);
-  return r ? toWriter(r) : null;
-}
 
 export async function getPublication(userId: string): Promise<Publication> {
-  const p = await q1<Publication>("SELECT * FROM publications WHERE user_id = ?", [userId]);
-  if (!p) throw new Error("Publicación no encontrada");
+  const p = await one<Publication>("publications", { user_id: eq(userId) });
+  if (!p) throw new Error("Falta la publicación del usuario");
   return p;
 }
 
-type RawNewsletter = Omit<NewsletterRow, "content"> & { content: string };
+export async function listWriters(userId: string): Promise<WriterProfile[]> {
+  const rows = await select<Record<string, unknown>>("writers", { user_id: eq(userId), order: "created_at.asc" });
+  return rows.map(writerFromRow);
+}
 
-function toNewsletter(r: RawNewsletter): NewsletterRow | null {
-  let content: Newsletter | null = null;
-  try {
-    content = sanitizeNewsletter(JSON.parse(r.content));
-  } catch {
-    content = null;
-  }
-  return content ? { ...r, content } : null;
+export async function getWriter(userId: string, id: string | null | undefined): Promise<WriterProfile | null> {
+  if (!isUuid(id)) return null;
+  const r = await one<Record<string, unknown>>("writers", { id: eq(id), user_id: eq(userId) });
+  return r ? writerFromRow(r) : null;
 }
 
 export async function getNewsletter(userId: string, id: string): Promise<NewsletterRow | null> {
-  const r = await q1<RawNewsletter>("SELECT * FROM newsletters WHERE id = ? AND user_id = ?", [id, userId]);
-  return r ? toNewsletter(r) : null;
+  if (!isUuid(id)) return null;
+  return one<NewsletterRow>("newsletters", { id: eq(id), user_id: eq(userId) });
 }
 
-export async function listNewsletters(userId: string, limit = 50): Promise<NewsletterRow[]> {
-  const rows = await q<RawNewsletter>(
-    "SELECT * FROM newsletters WHERE user_id = ? ORDER BY created_at DESC LIMIT ?",
-    [userId, limit],
-  );
-  return rows.map(toNewsletter).filter((x): x is NewsletterRow => x !== null);
+export async function writersById(userId: string, ids: string[]): Promise<Map<string, WriterProfile>> {
+  const valid = [...new Set(ids.filter(isUuid))];
+  if (!valid.length) return new Map();
+  const rows = await select<Record<string, unknown>>("writers", { user_id: eq(userId), id: inList(valid) });
+  return new Map(rows.map((r) => [String(r.id), writerFromRow(r)]));
 }
 
-export async function listSubscribers(userId: string): Promise<Subscriber[]> {
-  return q<Subscriber>("SELECT * FROM subscribers WHERE user_id = ? ORDER BY created_at DESC", [userId]);
+/** Valida lo que llega del formulario de redactor. Devuelve las columnas a guardar o un mensaje de error. */
+export function parseWriter(b: Record<string, unknown>): Record<string, unknown> | string {
+  const kind = b.kind === "custom" ? "custom" : "animal";
+  const animal = isAnimal(b.animal) ? b.animal : "zorro";
+  const name = clean(b.name, 40) || (kind === "animal" ? ANIMALS[animal].defaultName : "");
+  if (name.length < 2) return "Ponle un nombre a tu redactor.";
+  const length = b.length === "corto" || b.length === "largo" ? b.length : "medio";
+
+  const c = (b.custom && typeof b.custom === "object" ? b.custom : {}) as Record<string, unknown>;
+  const language: Language = c.language === "es-419" || c.language === "en" ? c.language : "es-ES";
+  const custom: CustomProfile =
+    kind === "custom"
+      ? {
+          voice: clean(c.voice, 600),
+          audience: clean(c.audience, 400),
+          dos: clean(c.dos, 600),
+          donts: clean(c.donts, 600),
+          phrases: clean(c.phrases, 400),
+          greeting: clean(c.greeting, 120),
+          signoff: clean(c.signoff, 80),
+          humor: int(c.humor, 0, 100, 40),
+          emotion: int(c.emotion, 0, 100, 50),
+          language,
+        }
+      : { ...EMPTY_CUSTOM, language };
+
+  if (kind === "custom" && custom.voice.length < 10) return "Describe en una frase cómo escribe tu redactor (su voz).";
+  const color = typeof b.color === "string" && /^#[0-9a-f]{6}$/i.test(b.color) ? b.color : "";
+  return {
+    kind,
+    animal,
+    name,
+    avatar: kind === "custom" ? clean(b.avatar, 8) || "✍️" : "",
+    color: kind === "custom" ? color || "#6d4aff" : "",
+    about: clean(b.about, 1200),
+    formality: int(b.formality, 0, 100, 35),
+    length,
+    emojis: int(b.emojis, 0, 2, 1),
+    sample: clean(b.sample, 3000),
+    format: isFormat(b.format) ? b.format : "auto",
+    custom,
+  };
 }
 
-export async function countConfirmed(userId: string): Promise<number> {
-  const r = await q1<{ n: number }>(
-    "SELECT COUNT(*) AS n FROM subscribers WHERE user_id = ? AND status = 'confirmed'",
-    [userId],
-  );
-  return r?.n ?? 0;
-}
-
-export async function countSubscribers(userId: string): Promise<number> {
-  const r = await q1<{ n: number }>(
-    "SELECT COUNT(*) AS n FROM subscribers WHERE user_id = ? AND status != 'unsubscribed'",
-    [userId],
-  );
-  return r?.n ?? 0;
+export function parseContent(x: unknown): Newsletter | null {
+  return sanitizeNewsletter(x);
 }

@@ -1,30 +1,25 @@
-import { NextResponse } from "next/server";
-import { body, guard } from "@/lib/api";
 import { COOKIE } from "@/lib/auth";
-import { run } from "@/lib/db";
-import { json, normEmail } from "@/lib/util";
+import { eq, one, remove, select } from "@/lib/db";
+import { authed } from "@/lib/http";
 
-/** Borra la cuenta y todos sus datos (derecho de supresión). */
-export async function DELETE(req: Request) {
-  const user = await guard(req);
-  if (user instanceof Response) return user;
+/** Descarga de todos tus datos (JSON). */
+export const GET = authed(async (_req, user) => {
+  const [publication, writers, subscribers, newsletters, topics] = await Promise.all([
+    one("publications", { user_id: eq(user.id) }),
+    select("writers", { user_id: eq(user.id) }),
+    select("subscribers", { select: "email,name,status,source,created_at,confirmed_at", user_id: eq(user.id) }),
+    select("newsletters", { user_id: eq(user.id) }),
+    select("topics", { user_id: eq(user.id) }),
+  ]);
+  return new Response(JSON.stringify({ user, publication, writers, subscribers, newsletters, topics }, null, 2), {
+    headers: { "content-type": "application/json; charset=utf-8", "content-disposition": 'attachment; filename="automailx-mis-datos.json"', "cache-control": "no-store" },
+  });
+});
 
-  const b = await body<{ confirm?: string }>(req);
-  if (normEmail(String(b.confirm ?? "")) !== user.email) {
-    return json({ error: "Escribe tu correo para confirmar." }, 400);
-  }
-  for (const sql of [
-    "DELETE FROM newsletters WHERE user_id = ?",
-    "DELETE FROM subscribers WHERE user_id = ?",
-    "DELETE FROM writers WHERE user_id = ?",
-    "DELETE FROM publications WHERE user_id = ?",
-    "DELETE FROM sessions WHERE user_id = ?",
-    "DELETE FROM users WHERE id = ?",
-  ]) {
-    await run(sql, [user.id]);
-  }
-  await run("DELETE FROM login_tokens WHERE email = ?", [user.email]);
-  const res = NextResponse.json({ ok: true });
-  res.cookies.set(COOKIE, "", { path: "/", maxAge: 0 });
-  return res;
-}
+/** Borra la cuenta y TODO lo asociado (en cascada). */
+export const DELETE = authed(async (_req, user) => {
+  await remove("users", { id: eq(user.id) });
+  return new Response(JSON.stringify({ ok: true }), {
+    headers: { "content-type": "application/json", "set-cookie": `${COOKIE}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax` },
+  });
+});

@@ -1,42 +1,61 @@
 import Link from "next/link";
 import WriterAvatar from "@/components/WriterAvatar";
 import { requireUser } from "@/lib/auth";
-import { getWriters, listNewsletters } from "@/lib/data";
+import type { NewsletterRow } from "@/lib/data";
+import { eq, select } from "@/lib/db";
+import { fecha, plural } from "@/lib/format-utils";
+import { DEFAULT_LOOK } from "@/lib/newsletter";
 
-const fmt = (ms: number) => new Date(ms).toLocaleString("es-ES", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" });
+type Row = Pick<NewsletterRow, "id" | "look" | "content" | "status" | "recipients" | "delivery" | "created_at" | "sent_at">;
 
 export default async function HistoryPage() {
   const user = await requireUser();
-  const [list, writers] = await Promise.all([listNewsletters(user.id, 100), getWriters(user.id)]);
-  const byId = new Map(writers.map((w) => [w.id, w]));
+  const rows = await select<Row>("newsletters", { select: "id,look,content,status,recipients,delivery,created_at,sent_at", user_id: eq(user.id), order: "created_at.desc", limit: 100 });
+  const drafts = rows.filter((r) => r.status === "draft");
+  const sent = rows.filter((r) => r.status !== "draft");
+
+  const Item = ({ r }: { r: Row }) => (
+    <li>
+      <Link href={`/panel/n/${r.id}`} className="flex items-center gap-3 px-4 py-3 hover:bg-[#faf9f7]">
+        <WriterAvatar look={r.look?.color ? r.look : DEFAULT_LOOK} size={36} />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate font-medium">{r.content.subject}</span>
+          <span className="text-xs text-muted">
+            {r.status === "draft"
+              ? `Borrador · ${fecha(r.created_at)}`
+              : r.status === "sending"
+                ? "Enviándose…"
+                : `Enviada el ${fecha(r.sent_at)} a ${plural(r.recipients, "persona", "personas")}${r.delivery === "demo" ? " (modo prueba)" : ""}`}
+          </span>
+        </span>
+        <span aria-hidden className="text-muted">›</span>
+      </Link>
+    </li>
+  );
 
   return (
-    <div>
-      <h1 className="mb-6 text-3xl font-bold">Historial</h1>
-      {list.length === 0 ? (
-        <p className="card p-10 text-center text-muted">Aquí aparecerán tus newsletters.</p>
-      ) : (
-        <ul className="space-y-3">
-          {list.map((n) => {
-            const w = byId.get(n.writer_id);
-            return (
-              <li key={n.id}>
-                <Link href={`/panel/n/${n.id}`} className="card flex items-center gap-4 p-4 transition hover:shadow-lg">
-                  {w ? <WriterAvatar w={w} size={44} className="shrink-0" /> : <div className="h-11 w-11 shrink-0 rounded-full bg-line" />}
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium">{n.content.subject}</p>
-                    <p className="text-sm text-muted">
-                      {n.status === "sent"
-                        ? `Enviada · ${fmt(n.sent_at ?? n.updated_at)} · ${n.recipients} ${n.recipients === 1 ? "persona" : "personas"}${n.delivery === "demo" ? " · simulada" : ""}`
-                        : `Borrador · ${fmt(n.updated_at)}`}
-                    </p>
-                  </div>
-                  <span className="text-muted" aria-hidden>›</span>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold">Historial</h1>
+        <p className="mt-1 text-muted">Tus borradores y todo lo que has enviado.</p>
+      </div>
+      {rows.length === 0 && (
+        <div className="card p-8 text-center">
+          <p className="text-muted">Aún no has escrito ninguna newsletter.</p>
+          <Link href="/panel" className="btn btn-primary mt-4">Escribir la primera</Link>
+        </div>
+      )}
+      {drafts.length > 0 && (
+        <section>
+          <h2 className="mb-2 font-bold">Borradores ({drafts.length})</h2>
+          <ul className="card divide-y divide-line overflow-hidden">{drafts.map((r) => <Item key={r.id} r={r} />)}</ul>
+        </section>
+      )}
+      {sent.length > 0 && (
+        <section>
+          <h2 className="mb-2 font-bold">Enviadas ({sent.length})</h2>
+          <ul className="card divide-y divide-line overflow-hidden">{sent.map((r) => <Item key={r.id} r={r} />)}</ul>
+        </section>
       )}
     </div>
   );

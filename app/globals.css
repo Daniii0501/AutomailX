@@ -140,3 +140,19 @@ h1, h2, h3 {
 @media (prefers-reduced-motion: reduce) {
   .anim-ring, .anim-bob, .bar, .shimmer, .anim-caret { animation: none; }
 }
+
+/* --- añadidos de la reconstrucción --- */
+.label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.4rem; }
+.hint { font-size: 0.8rem; color: var(--muted); margin-top: 0.35rem; }
+textarea.input { resize: vertical; line-height: 1.5; }
+.range { width: 100%; accent-color: var(--brand); }
+.banner { border-radius: 1rem; padding: 0.8rem 1rem; font-size: 0.9rem; line-height: 1.45; }
+.banner-warn { background: #fff6e8; border: 1px solid #f6d9a8; color: #6b4a12; }
+.banner-info { background: #f1edff; border: 1px solid #d9cffd; color: #3a2b7a; }
+.banner-ok { background: #e9f7f0; border: 1px solid #bfe6d3; color: #145c3f; }
+.banner-err { background: #fdecef; border: 1px solid #f5c2cc; color: #8a2236; }
+.tab[aria-selected="true"] { background: var(--ink); color: #fff; }
+.pill { display: inline-flex; align-items: center; gap: .3rem; border-radius: 9999px; padding: .15rem .6rem; font-size: .75rem; font-weight: 600; }
+:focus-visible { outline: 3px solid rgba(109, 74, 255, 0.45); outline-offset: 2px; }
+/* Los fieldset, por defecto, crecen con su contenido y rompen el ancho en móvil */
+fieldset { min-width: 0; }

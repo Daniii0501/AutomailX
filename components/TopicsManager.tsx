@@ -1,18 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
 import { useRouter } from "next/navigation";
-import WriterAvatar from "@/components/WriterAvatar";
-import type { AnimalId } from "@/lib/animals";
+import { useState } from "react";
 import { api } from "@/lib/client";
-import { FORMAT_IDS, FORMATS, type FormatId } from "@/lib/formats";
+import { FORMATS, FORMAT_IDS, type FormatId } from "@/lib/formats";
+import type { Look } from "@/lib/newsletter";
+import WriterAvatar from "./WriterAvatar";
 
-export type TopicView = {
+export type TopicLite = {
   id: string;
-  writer_id: string;
   title: string;
   notes: string;
+  writer_id: string | null;
   format: FormatId;
   scheduled_day: string | null;
   send_hour: number;
@@ -21,230 +21,182 @@ export type TopicView = {
   newsletter_id: string | null;
   error: string | null;
 };
+type W = { id: string; name: string; look: Look };
 
-export type TopicWriter = { id: string; name: string; kind: "animal" | "custom"; animal: AnimalId; avatar: string; color: string; format: FormatId };
+const EMPTY = { title: "", notes: "", writerId: "", format: "auto" as FormatId, day: "", hour: 8, mode: "draft" as "draft" | "send" };
 
-type Form = { id: string | null; title: string; notes: string; writerId: string; format: FormatId; day: string; hour: number; mode: "draft" | "send" };
+function dayLabel(d: string) {
+  return new Date(`${d}T12:00:00`).toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long" });
+}
 
-const dayLabel = (d: string) => new Date(`${d}T12:00:00`).toLocaleDateString("es-ES", { weekday: "short", day: "numeric", month: "short" });
-
-export default function TopicsManager({ topics, writers, today, confirmed }: { topics: TopicView[]; writers: TopicWriter[]; today: string; confirmed: number }) {
+export default function TopicsManager({ topics, writers, today, mailOn }: { topics: TopicLite[]; writers: W[]; today: string; mailOn: boolean }) {
   const router = useRouter();
-  const blank = (): Form => ({ id: null, title: "", notes: "", writerId: writers[0].id, format: writers[0].format, day: "", hour: 8, mode: "draft" });
-  const [f, setF] = useState<Form>(blank);
-  const [busy, setBusy] = useState(false);
-  const [working, setWorking] = useState<string | null>(null);
+  const [form, setForm] = useState({ ...EMPTY, writerId: writers[0]?.id ?? "" });
+  const [editing, setEditing] = useState<string | null>(null);
+  const [open, setOpen] = useState(topics.length === 0);
+  const [busy, setBusy] = useState<string>("");
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  const [open, setOpen] = useState(false);
+  const wById = new Map(writers.map((w) => [w.id, w]));
 
-  const byId = new Map(writers.map((w) => [w.id, w]));
   const scheduled = topics.filter((t) => t.status === "scheduled" || t.status === "running" || (t.status === "failed" && t.scheduled_day));
   const ideas = topics.filter((t) => t.status === "idea" || (t.status === "failed" && !t.scheduled_day));
   const done = topics.filter((t) => t.status === "drafted" || t.status === "sent");
 
-  function pickWriter(id: string) {
-    const w = byId.get(id);
-    setF((p) => ({ ...p, writerId: id, format: w ? w.format : p.format }));
-  }
-
-  function edit(t: TopicView) {
-    setF({ id: t.id, title: t.title, notes: t.notes, writerId: t.writer_id, format: t.format, day: t.scheduled_day ?? "", hour: t.send_hour, mode: t.mode });
+  function startEdit(t: TopicLite) {
+    setEditing(t.id);
+    setForm({ title: t.title, notes: t.notes, writerId: t.writer_id ?? writers[0]?.id ?? "", format: t.format, day: t.scheduled_day ?? "", hour: t.send_hour, mode: t.mode });
     setOpen(true);
-    setMsg(null);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  async function save(e: React.FormEvent) {
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
-    setBusy(true);
+    setBusy("form");
     setMsg(null);
-    const payload = { title: f.title, notes: f.notes, writerId: f.writerId, format: f.format, day: f.day || null, hour: f.hour, mode: f.mode };
-    const r = f.id ? await api(`/api/topics/${f.id}`, "PATCH", payload) : await api("/api/topics", "POST", payload);
-    setBusy(false);
-    if (!r.ok) return setMsg({ ok: false, text: r.data.error ?? "No se pudo guardar." });
-    setF(blank());
-    setOpen(false);
-    router.refresh();
+    try {
+      if (editing) await api(`/api/topics/${editing}`, { method: "PATCH", body: form });
+      else await api("/api/topics", { body: form });
+      setMsg({ ok: true, text: form.day ? `Programado para el ${dayLabel(form.day)} a las ${form.hour}:00.` : "Guardado en tu banco de ideas." });
+      setForm({ ...EMPTY, writerId: form.writerId });
+      setEditing(null);
+      setOpen(false);
+      router.refresh();
+    } catch (err) {
+      setMsg({ ok: false, text: (err as Error).message });
+    } finally {
+      setBusy("");
+    }
   }
 
-  async function remove(t: TopicView) {
-    if (!confirm(`¿Quitar el tema «${t.title}»?`)) return;
-    const r = await api(`/api/topics/${t.id}`, "DELETE");
-    if (r.ok) router.refresh();
-    else setMsg({ ok: false, text: r.data.error ?? "No se pudo quitar." });
+  async function writeNow(t: TopicLite) {
+    setBusy(t.id);
+    setMsg({ ok: true, text: `Escribiendo «${t.title}»… (20–60 segundos)` });
+    try {
+      const r = await api<{ newsletterId: string }>(`/api/topics/${t.id}/write-now`, { body: {} });
+      router.push(`/panel/n/${r.newsletterId}`);
+    } catch (err) {
+      setMsg({ ok: false, text: (err as Error).message });
+      setBusy("");
+      router.refresh();
+    }
   }
 
-  async function writeNow(t: TopicView) {
-    setWorking(t.id);
-    setMsg(null);
-    const r = await api<{ newsletterId?: string }>(`/api/topics/${t.id}/write-now`, "POST");
-    setWorking(null);
-    if (!r.ok || !r.data.newsletterId) return setMsg({ ok: false, text: r.data.error ?? "No se pudo escribir." });
-    router.push(`/panel/n/${r.data.newsletterId}`);
+  async function del(t: TopicLite) {
+    if (!confirm(`¿Borrar el tema «${t.title}»?`)) return;
+    try {
+      await api(`/api/topics/${t.id}`, { method: "DELETE" });
+      router.refresh();
+    } catch (err) {
+      setMsg({ ok: false, text: (err as Error).message });
+    }
   }
 
-  function Card({ t }: { t: TopicView }) {
-    const w = byId.get(t.writer_id);
-    const isWorking = working === t.id || t.status === "running";
+  const Card = ({ t }: { t: TopicLite }) => {
+    const w = t.writer_id ? wById.get(t.writer_id) : undefined;
+    const editable = t.status === "idea" || t.status === "scheduled" || t.status === "failed";
     return (
       <li className="card p-4">
         <div className="flex items-start gap-3">
-          {w ? <WriterAvatar w={w} size={42} className="shrink-0" /> : <div className="h-[42px] w-[42px] shrink-0 rounded-full bg-line" />}
+          {w ? <WriterAvatar look={w.look} size={36} /> : <span className="h-9 w-9 rounded-full bg-[#f4f2ef]" />}
           <div className="min-w-0 flex-1">
-            <p className="font-medium leading-snug">{t.title}</p>
-            <p className="mt-0.5 text-sm text-muted">
-              {w ? w.name : "Redactor eliminado"} · {FORMATS[t.format].emoji} {FORMATS[t.format].label}
+            <p className="font-semibold">{t.title}</p>
+            <p className="text-xs text-muted">
+              {FORMATS[t.format]?.emoji} {t.format === "auto" ? "Estilo libre" : FORMATS[t.format]?.label}
+              {t.scheduled_day && ` · ${dayLabel(t.scheduled_day)}, ${t.send_hour}:00`}
+              {t.scheduled_day && (t.mode === "send" ? " · se envía solo" : " · borrador para revisar")}
             </p>
-            <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
-              {t.scheduled_day && (
-                <span className="rounded-full bg-brand/10 px-2.5 py-1 font-medium text-brand">
-                  {t.scheduled_day === today ? "Hoy" : dayLabel(t.scheduled_day)} · {String(t.send_hour).padStart(2, "0")}:00
-                </span>
-              )}
-              {t.status !== "idea" && t.scheduled_day && (
-                <span className={`rounded-full px-2.5 py-1 font-medium ${t.mode === "send" ? "bg-amber-100 text-amber-800" : "bg-black/5 text-muted"}`}>
-                  {t.mode === "send" ? "Se enviará sola" : "Borrador para revisar"}
-                </span>
-              )}
-              {t.status === "failed" && <span className="rounded-full bg-red-50 px-2.5 py-1 font-medium text-danger">Falló</span>}
-            </div>
-            {t.error && <p className="mt-2 text-xs text-danger">{t.error}</p>}
+            {t.notes && <p className="mt-1 line-clamp-2 text-sm text-muted">{t.notes}</p>}
+            {t.status === "running" && <p className="mt-2 text-sm font-semibold text-brand">Escribiéndose…</p>}
+            {t.error && <p className="mt-2 text-sm text-danger">{t.error}</p>}
           </div>
         </div>
-
-        <div className="mt-3 flex flex-wrap gap-2 border-t border-line pt-3">
-          {(t.status === "drafted" || t.status === "sent") && t.newsletter_id ? (
-            <Link href={`/panel/n/${t.newsletter_id}`} className="btn btn-soft !px-4 !py-2 !text-sm">
-              {t.status === "sent" ? "Ver enviada" : "Abrir borrador"}
-            </Link>
-          ) : (
-            <>
-              <button onClick={() => writeNow(t)} disabled={isWorking} className="btn btn-primary !px-4 !py-2 !text-sm">
-                {isWorking ? "Escribiendo…" : "Escribir ahora"}
-              </button>
-              <button onClick={() => edit(t)} disabled={isWorking} className="btn btn-soft !px-4 !py-2 !text-sm">Editar</button>
-            </>
+        <div className="mt-3 flex flex-wrap gap-3 text-sm font-semibold">
+          {editable && (
+            <button className="btn btn-primary !px-4 !py-2 text-sm" onClick={() => writeNow(t)} disabled={!!busy}>
+              {busy === t.id ? "Escribiendo…" : "Escribir ahora"}
+            </button>
           )}
-          <button onClick={() => remove(t)} disabled={isWorking} className="ml-auto text-sm text-muted hover:text-danger">Quitar</button>
+          {t.newsletter_id && <Link href={`/panel/n/${t.newsletter_id}`} className="btn btn-soft !px-4 !py-2 text-sm">{t.status === "sent" ? "Ver enviada" : "Revisar borrador"}</Link>}
+          {editable && <button className="underline" onClick={() => startEdit(t)} disabled={!!busy}>Editar</button>}
+          <button className="text-danger underline" onClick={() => del(t)} disabled={!!busy}>Borrar</button>
         </div>
       </li>
     );
-  }
+  };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
+      {msg && <p role="status" className={`banner ${msg.ok ? "banner-info" : "banner-err"}`}>{msg.text}</p>}
+
       {!open ? (
-        <button onClick={() => { setF(blank()); setOpen(true); }} className="card flex w-full items-center justify-between gap-4 p-5 text-left transition hover:shadow-lg">
-          <span>
-            <span className="block font-semibold">+ Añadir un tema</span>
-            <span className="text-sm text-muted">Apunta una idea y, si quieres, elige qué día se escribe sola.</span>
-          </span>
-          <span className="btn btn-primary shrink-0">Nuevo</span>
-        </button>
+        <button className="btn btn-primary" onClick={() => setOpen(true)}>+ Nuevo tema</button>
       ) : (
-        <form onSubmit={save} className="card space-y-5 p-6">
-          <h2 className="text-lg font-semibold">{f.id ? "Editar tema" : "Nuevo tema"}</h2>
-
+        <form onSubmit={submit} className="card space-y-4 p-5">
+          <h2 className="font-bold">{editing ? "Editar tema" : "Nuevo tema"}</h2>
           <div>
-            <label htmlFor="t-title" className="mb-2 block text-sm font-medium">¿De qué va?</label>
-            <input id="t-title" value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} maxLength={120} className="input" placeholder="Ej.: Lanzamiento del curso de fotografía" autoFocus />
+            <label htmlFor="ttitle" className="label">¿De qué va?</label>
+            <input id="ttitle" className="input" required minLength={3} maxLength={120} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Ej.: Llega la carta de invierno" />
           </div>
-
           <div>
-            <label htmlFor="t-notes" className="mb-2 block text-sm font-medium">Lo que tiene que contar <span className="font-normal text-muted">(cuanto más detalle, mejor escribe)</span></label>
-            <textarea id="t-notes" value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} rows={5} maxLength={2000} className="input resize-none" placeholder="Fechas, datos, anécdotas, a quién agradecer, qué quieres que haga el lector… Solo usará lo que escribas aquí." />
+            <label htmlFor="tnotes" className="label">Lo que debe contar</label>
+            <textarea id="tnotes" className="input" rows={4} maxLength={2000} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Datos, fechas, precios, detalles… Solo usará lo que pongas aquí." />
           </div>
-
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label htmlFor="t-writer" className="mb-2 block text-sm font-medium">Redactor</label>
-              <select id="t-writer" value={f.writerId} onChange={(e) => pickWriter(e.target.value)} className="input">
-                {writers.map((w) => (<option key={w.id} value={w.id}>{w.name}</option>))}
+              <label htmlFor="twriter" className="label">Redactor</label>
+              <select id="twriter" className="input" value={form.writerId} onChange={(e) => setForm({ ...form, writerId: e.target.value })}>
+                {writers.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
               </select>
             </div>
             <div>
-              <label htmlFor="t-format" className="mb-2 block text-sm font-medium">Estilo</label>
-              <select id="t-format" value={f.format} onChange={(e) => setF({ ...f, format: e.target.value as FormatId })} className="input">
-                {FORMAT_IDS.map((id) => (<option key={id} value={id}>{FORMATS[id].emoji} {FORMATS[id].label}</option>))}
+              <label htmlFor="tformat" className="label">Estilo</label>
+              <select id="tformat" className="input" value={form.format} onChange={(e) => setForm({ ...form, format: e.target.value as FormatId })}>
+                {FORMAT_IDS.map((id) => <option key={id} value={id}>{FORMATS[id].emoji} {id === "auto" ? "El habitual del redactor" : FORMATS[id].label}</option>)}
               </select>
             </div>
           </div>
-
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label htmlFor="t-day" className="mb-2 block text-sm font-medium">Día <span className="font-normal text-muted">(opcional)</span></label>
-              <input id="t-day" type="date" min={today} value={f.day} onChange={(e) => setF({ ...f, day: e.target.value })} className="input" />
+              <label htmlFor="tday" className="label">Día <span className="font-normal text-muted">(opcional)</span></label>
+              <input id="tday" type="date" min={today} className="input" value={form.day} onChange={(e) => setForm({ ...form, day: e.target.value })} />
+              <p className="hint">Sin día, se queda en tu banco de ideas.</p>
             </div>
-            {f.day && (
-              <div>
-                <label htmlFor="t-hour" className="mb-2 block text-sm font-medium">Hora (España)</label>
-                <select id="t-hour" value={f.hour} onChange={(e) => setF({ ...f, hour: Number(e.target.value) })} className="input">
-                  {Array.from({ length: 24 }, (_, h) => (<option key={h} value={h}>{String(h).padStart(2, "0")}:00</option>))}
-                </select>
-              </div>
-            )}
+            <div>
+              <label htmlFor="thour" className="label">Hora (España)</label>
+              <select id="thour" className="input" value={form.hour} disabled={!form.day} onChange={(e) => setForm({ ...form, hour: Number(e.target.value) })}>
+                {Array.from({ length: 24 }, (_, h) => <option key={h} value={h}>{String(h).padStart(2, "0")}:00</option>)}
+              </select>
+            </div>
           </div>
-          <p className="-mt-2 text-xs text-muted">Ese día y a esa hora tu redactor lo escribe (y lo envía, si lo eliges) y te avisa por correo. Sin día, queda en el banco de ideas.</p>
-
-          {f.day && (
+          {form.day && (
             <fieldset>
-              <legend className="mb-2 text-sm font-medium">Cuando llegue el día…</legend>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <label className={`cursor-pointer rounded-2xl border p-4 text-sm transition ${f.mode === "draft" ? "border-ink bg-white shadow-sm" : "border-line bg-white/60"}`}>
-                  <input type="radio" name="mode" className="sr-only" checked={f.mode === "draft"} onChange={() => setF({ ...f, mode: "draft" })} />
-                  <b className="block">Dejar el borrador listo</b>
-                  <span className="text-muted">Te aviso y tú lo revisas antes de enviar. Lo más seguro.</span>
-                </label>
-                <label className={`cursor-pointer rounded-2xl border p-4 text-sm transition ${f.mode === "send" ? "border-ink bg-white shadow-sm" : "border-line bg-white/60"}`}>
-                  <input type="radio" name="mode" className="sr-only" checked={f.mode === "send"} onChange={() => setF({ ...f, mode: "send" })} />
-                  <b className="block">Enviar automáticamente</b>
-                  <span className="text-muted">Se escribe y se envía sola a {confirmed} {confirmed === 1 ? "persona" : "personas"}, sin que la leas.</span>
-                </label>
+              <legend className="label">Cuando llegue el día…</legend>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" className="chip" aria-pressed={form.mode === "draft"} onClick={() => setForm({ ...form, mode: "draft" })}>Escríbelo y avísame para revisarlo</button>
+                <button type="button" className="chip" aria-pressed={form.mode === "send"} onClick={() => setForm({ ...form, mode: "send" })}>Escríbelo y envíalo solo</button>
               </div>
-              {f.mode === "send" && (
-                <p className="mt-2 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-900">
-                  La IA puede equivocarse. Usa el envío automático solo cuando ya confíes en tu redactor y en las notas que le das.
-                </p>
-              )}
+              {form.mode === "send" && <p className="hint text-[#6b4a12]">Se enviará sin que lo revises. Recomendado solo si ya confías en tu redactor.</p>}
+              {!mailOn && <p className="hint">Ojo: sin Resend conectado, no podremos avisarte por correo.</p>}
             </fieldset>
           )}
-
-          {msg && <p role="alert" className={`rounded-xl px-3 py-2 text-sm ${msg.ok ? "bg-ok/10 text-ok" : "bg-red-50 text-danger"}`}>{msg.text}</p>}
-
-          <div className="flex gap-2">
-            <button type="button" onClick={() => { setOpen(false); setF(blank()); setMsg(null); }} className="btn btn-soft">Cancelar</button>
-            <button type="submit" disabled={busy || f.title.trim().length < 3} className="btn btn-primary">
-              {busy ? "Guardando…" : f.day ? "Programar" : "Guardar en el banco"}
-            </button>
+          <div className="flex gap-3">
+            <button className="btn btn-primary" disabled={busy === "form" || !writers.length}>{busy === "form" ? "Guardando…" : editing ? "Guardar" : form.day ? "Programar" : "Guardar idea"}</button>
+            <button type="button" className="btn btn-soft" onClick={() => { setOpen(false); setEditing(null); setForm({ ...EMPTY, writerId: writers[0]?.id ?? "" }); }}>Cancelar</button>
           </div>
         </form>
       )}
 
-      {msg && !open && <p role="alert" className={`rounded-xl px-3 py-2 text-sm ${msg.ok ? "bg-ok/10 text-ok" : "bg-red-50 text-danger"}`}>{msg.text}</p>}
-
-      <section>
-        <h2 className="mb-3 text-xl font-semibold">Programados</h2>
-        {scheduled.length === 0 ? (
-          <p className="card p-6 text-center text-muted">Nada programado. Añade un tema con un día y se escribirá solo.</p>
-        ) : (
-          <ul className="space-y-3">{scheduled.map((t) => (<Card key={t.id} t={t} />))}</ul>
-        )}
-      </section>
-
-      <section>
-        <h2 className="mb-3 text-xl font-semibold">Banco de ideas</h2>
-        {ideas.length === 0 ? (
-          <p className="card p-6 text-center text-muted">Aquí van las ideas que aún no tienen fecha. Apúntalas cuando se te ocurran.</p>
-        ) : (
-          <ul className="space-y-3">{ideas.map((t) => (<Card key={t.id} t={t} />))}</ul>
-        )}
-      </section>
-
-      {done.length > 0 && (
-        <section>
-          <h2 className="mb-3 text-xl font-semibold">Ya escritos</h2>
-          <ul className="space-y-3">{done.map((t) => (<Card key={t.id} t={t} />))}</ul>
-        </section>
+      {[
+        { title: "Programados", list: scheduled, empty: "Nada programado." },
+        { title: "Banco de ideas", list: ideas, empty: "Apunta aquí ideas para cuando no sepas de qué escribir." },
+        { title: "Ya escritos", list: done, empty: "" },
+      ].map((g) =>
+        g.list.length || g.empty ? (
+          <section key={g.title}>
+            <h2 className="mb-2 font-bold">{g.title} {g.list.length > 0 && <span className="text-muted">({g.list.length})</span>}</h2>
+            {g.list.length ? <ul className="space-y-2">{g.list.map((t) => <Card key={t.id} t={t} />)}</ul> : <p className="text-sm text-muted">{g.empty}</p>}
+          </section>
+        ) : null,
       )}
     </div>
   );

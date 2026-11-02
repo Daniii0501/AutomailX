@@ -1,54 +1,43 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
-import Animal from "@/components/Animal";
-import Brand from "@/components/Brand";
-import LoginForm from "@/components/LoginForm";
-import { ANIMAL_IDS } from "@/lib/animals";
+import Centered from "@/components/Centered";
 import { getUser } from "@/lib/auth";
 import { dbConfigured } from "@/lib/db";
 
 export const metadata = { title: "Entrar · AutoMailX" };
 
-export default async function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
-  if (await getUser()) redirect("/panel");
-  const { error } = await searchParams;
+type SP = Promise<{ error?: string; enviado?: string }>;
 
-  // Sin base de datos no se puede crear la cuenta ni guardar nada: lo decimos claro en vez de fallar callados.
-  if (!dbConfigured) {
-    return (
-      <main className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-6 py-12">
-        <div className="mb-10 text-center"><Brand /></div>
-        <div className="card p-8">
-          <Animal id="gato" size={90} className="mx-auto" />
-          <h1 className="mt-5 text-center text-2xl font-bold">Falta un último paso</h1>
-          <p className="mt-2 text-center text-muted">
-            Esta web todavía no tiene la base de datos conectada, así que no se puede crear ninguna cuenta.
-          </p>
-          <ol className="mt-6 list-decimal space-y-2 pl-5 text-sm text-muted">
-            <li>En Vercel, abre tu proyecto y entra en <b className="text-ink">Storage</b>.</li>
-            <li>Crea o conecta una base de datos de <b className="text-ink">Supabase</b> en tu proyecto.</li>
-            <li>Pulsa <b className="text-ink">Redeploy</b> en Deployments.</li>
-          </ol>
-          <p className="mt-5 text-center text-xs text-muted">Si eres tú quien administra la web, abre /api/health para ver el estado.</p>
-        </div>
-      </main>
-    );
-  }
+export default async function LoginPage({ searchParams }: { searchParams: SP }) {
+  const { error, enviado } = await searchParams;
+  const db = dbConfigured();
+  if (db && (await getUser().catch(() => null))) redirect("/panel");
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-6 py-12">
-      <div className="mb-10 text-center">
-        <Brand />
-      </div>
-      <div className="card p-8">
-        <div className="mb-6 flex justify-center -space-x-2" aria-hidden>
-          {ANIMAL_IDS.map((id) => (
-            <Animal key={id} id={id} size={44} className="rounded-full ring-2 ring-white" />
-          ))}
+    <Centered footer={<Link href="/" className="underline underline-offset-4">Volver a la portada</Link>}>
+      {enviado ? (
+        <div className="text-center">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[#f1edff] text-2xl" aria-hidden>📬</div>
+          <h1 className="text-2xl font-bold">Mira tu correo</h1>
+          <p className="mt-2 text-muted">
+            Te hemos mandado un enlace a <strong className="text-ink">{enviado}</strong>. Ábrelo desde este mismo dispositivo. Caduca en 15 minutos.
+          </p>
+          <p className="hint mt-5">¿No llega? Mira en «Spam» o «Promociones», o <Link className="underline" href="/login">pide otro</Link>.</p>
         </div>
-        <h1 className="text-center text-3xl font-bold">Hola 👋</h1>
-        <p className="mb-7 mt-2 text-center text-muted">Escribe tu correo y entra. Si es tu primera vez, crearemos tu cuenta.</p>
-        <LoginForm hadError={error === "1"} />
-      </div>
-    </main>
+      ) : (
+        <>
+          <h1 className="text-2xl font-bold">Entra en AutoMailX</h1>
+          <p className="mt-1.5 text-muted">Sin contraseñas: te mandamos un enlace a tu correo.</p>
+          {error && <p role="alert" className="banner banner-err mt-5">{error}</p>}
+          {!db && <p className="banner banner-warn mt-5">La base de datos aún no está conectada, así que todavía no se puede entrar.</p>}
+          <form method="post" action="/api/auth/request" className="mt-6 space-y-3">
+            <label htmlFor="email" className="label">Tu correo</label>
+            <input id="email" name="email" type="email" required autoComplete="email" inputMode="email" placeholder="tu@correo.com" className="input" />
+            <button type="submit" className="btn btn-primary w-full" disabled={!db}>Continuar</button>
+          </form>
+          <p className="hint mt-5">Si es tu primera vez, se crea tu cuenta al entrar. Es gratis.</p>
+        </>
+      )}
+    </Centered>
   );
 }

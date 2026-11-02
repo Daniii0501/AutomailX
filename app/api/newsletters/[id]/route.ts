@@ -1,38 +1,25 @@
-import { body, guard } from "@/lib/api";
-import { getNewsletter } from "@/lib/data";
-import { run } from "@/lib/db";
-import { sanitizeNewsletter } from "@/lib/newsletter";
-import { json, now } from "@/lib/util";
+import { getNewsletter, parseContent } from "@/lib/data";
+import { eq, remove, update } from "@/lib/db";
+import { authed, fail, json, readBody } from "@/lib/http";
+import { isUuid } from "@/lib/util";
 
-type Ctx = { params: Promise<{ id: string }> };
+type P = { id: string };
 
-export async function PATCH(req: Request, ctx: Ctx) {
-  const user = await guard(req);
-  if (user instanceof Response) return user;
-  const { id } = await ctx.params;
-
+/** Guarda los cambios del editor. */
+export const PATCH = authed<P>(async (req, user, { id }) => {
   const n = await getNewsletter(user.id, id);
-  if (!n) return json({ error: "No encontrada." }, 404);
-  if (n.status !== "draft") return json({ error: "Esta newsletter ya está enviada." }, 409);
+  if (!n) return fail("No encontrada.", 404);
+  if (n.status !== "draft") return fail("Esta newsletter ya se envió: no se puede cambiar.", 409);
+  const b = await readBody(req);
+  const content = parseContent(b.content);
+  if (!content) return fail("Le falta el asunto o el texto.");
+  await update("newsletters", { id: eq(id), user_id: eq(user.id), status: eq("draft") }, { content, updated_at: new Date().toISOString() });
+  return json({ ok: true, content });
+});
 
-  const b = await body<{ content?: unknown }>(req);
-  const content = sanitizeNewsletter(b.content);
-  if (!content) return json({ error: "Contenido no válido." }, 400);
-
-  await run("UPDATE newsletters SET content = ?, updated_at = ? WHERE id = ? AND user_id = ? AND status = 'draft'", [
-    JSON.stringify(content),
-    now(),
-    id,
-    user.id,
-  ]);
+export const DELETE = authed<P>(async (_req, user, { id }) => {
+  if (!isUuid(id)) return fail("No encontrada.", 404);
+  const n = await remove("newsletters", { id: eq(id), user_id: eq(user.id), status: eq("draft") });
+  if (!n) return fail("No se puede borrar (o ya no existe).", 404);
   return json({ ok: true });
-}
-
-export async function DELETE(req: Request, ctx: Ctx) {
-  const user = await guard(req);
-  if (user instanceof Response) return user;
-  const { id } = await ctx.params;
-  const n = await run("DELETE FROM newsletters WHERE id = ? AND user_id = ? AND status = 'draft'", [id, user.id]);
-  if (n === 0) return json({ error: "Solo se pueden borrar borradores." }, 404);
-  return json({ ok: true });
-}
+});

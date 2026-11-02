@@ -1,41 +1,39 @@
-import Animal from "@/components/Animal";
-import UnsubscribeButton from "@/components/UnsubscribeButton";
-import { notFound } from "next/navigation";
-import { dbConfigured, q1 } from "@/lib/db";
+import Centered from "@/components/Centered";
 
-export const metadata = { title: "Darme de baja" };
+export const metadata = { title: "Darse de baja", robots: { index: false } };
 
-export default async function Unsubscribe({ params }: { params: Promise<{ token: string }> }) {
+type P = Promise<{ token: string }>;
+type SP = Promise<{ ok?: string }>;
+
+export default async function UnsubscribePage({ params, searchParams }: { params: P; searchParams: SP }) {
   const { token } = await params;
-  if (!dbConfigured) notFound();
-  const sub = await q1<{ email: string; status: string; user_id: string }>(
-    "SELECT email, status, user_id FROM subscribers WHERE token = ?",
-    [token],
-  );
-  const pub = sub ? await q1<{ name: string }>("SELECT name FROM publications WHERE user_id = ?", [sub.user_id]) : null;
-
+  const { ok } = await searchParams;
+  const preview = token === "vista-previa";
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-6 py-12 text-center">
-      <div className="card p-8">
-        <Animal id="oso" size={90} className="mx-auto" />
-        {!sub ? (
+    <Centered>
+      <div className="text-center">
+        {ok ? (
           <>
-            <h1 className="mt-5 text-2xl font-bold">Esto es una vista previa</h1>
-            <p className="mt-2 text-muted">Este enlace de baja es de un correo de prueba, así que no hace nada.</p>
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[#f4f2ef] text-2xl" aria-hidden>👋</div>
+            <h1 className="text-2xl font-bold">Te has dado de baja</h1>
+            <p className="mt-2 text-muted">No volverás a recibir esta newsletter. Sentimos verte marchar.</p>
           </>
-        ) : sub.status === "unsubscribed" ? (
+        ) : preview ? (
           <>
-            <h1 className="mt-5 text-2xl font-bold">Ya estabas dado de baja</h1>
-            <p className="mt-2 text-muted">No recibirás más correos de {pub?.name ?? "esta newsletter"}.</p>
+            <h1 className="text-2xl font-bold">Enlace de baja</h1>
+            <p className="mt-2 text-muted">Esto es una prueba: en el correo real, aquí tus lectores se dan de baja con un clic.</p>
           </>
         ) : (
           <>
-            <h1 className="mt-5 text-2xl font-bold">¿Quieres darte de baja?</h1>
-            <p className="mb-6 mt-2 text-muted">Dejarás de recibir {pub?.name ?? "esta newsletter"} en <b className="text-ink">{sub.email}</b>.</p>
-            <UnsubscribeButton token={token} />
+            <h1 className="text-2xl font-bold">¿Darte de baja?</h1>
+            <p className="mt-2 text-muted">Dejarás de recibir esta newsletter.</p>
+            <form method="post" action="/api/public/unsubscribe" className="mt-6">
+              <input type="hidden" name="token" value={token} />
+              <button type="submit" className="btn btn-primary w-full">Sí, darme de baja</button>
+            </form>
           </>
         )}
       </div>
-    </main>
+    </Centered>
   );
 }

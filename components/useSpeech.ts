@@ -1,72 +1,63 @@
 "use client";
 
-import { useCallback, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState } from "react";
 
-type ResultList = ArrayLike<ArrayLike<{ transcript: string }>>;
 type Rec = {
   lang: string;
   continuous: boolean;
   interimResults: boolean;
-  onresult: ((e: { results: ResultList }) => void) | null;
-  onerror: ((e: { error?: string }) => void) | null;
+  start(): void;
+  stop(): void;
+  onresult: ((e: { resultIndex: number; results: ArrayLike<{ isFinal: boolean; 0: { transcript: string } }> }) => void) | null;
   onend: (() => void) | null;
-  start: () => void;
-  stop: () => void;
+  onerror: ((e: { error: string }) => void) | null;
 };
-type Ctor = new () => Rec;
 
-function getCtor(): Ctor | null {
-  if (typeof window === "undefined") return null;
-  const w = window as unknown as { SpeechRecognition?: Ctor; webkitSpeechRecognition?: Ctor };
-  return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
-}
-
-/** Dictado por voz con la Web Speech API (Chrome, Edge, Safari). */
-export function useSpeech(onText: (text: string) => void) {
-  const supported = useSyncExternalStore(
-    () => () => {},
-    () => getCtor() !== null,
-    () => false,
-  );
+/** Dictado por voz del navegador (Chrome, Edge, Safari). Llama a onText con cada frase reconocida. */
+export function useSpeech(onText: (t: string) => void) {
+  const [supported, setSupported] = useState(false);
   const [listening, setListening] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const recRef = useRef<Rec | null>(null);
+  const [error, setError] = useState("");
+  const rec = useRef<Rec | null>(null);
+  const cb = useRef(onText);
+  cb.current = onText;
 
-  const start = useCallback(() => {
-    const C = getCtor();
-    if (!C) return false;
-    setError(null);
-    const rec = new C();
-    rec.lang = "es-ES";
-    rec.continuous = true;
-    rec.interimResults = true;
-    rec.onresult = (e) => {
-      let t = "";
-      for (let i = 0; i < e.results.length; i++) t += e.results[i][0].transcript + " ";
-      onText(t.trim());
+  useEffect(() => {
+    const w = window as unknown as { SpeechRecognition?: new () => Rec; webkitSpeechRecognition?: new () => Rec };
+    const Ctor = w.SpeechRecognition ?? w.webkitSpeechRecognition;
+    if (!Ctor) return;
+    setSupported(true);
+    const r = new Ctor();
+    r.lang = "es-ES";
+    r.continuous = true;
+    r.interimResults = false;
+    r.onresult = (e) => {
+      for (let i = e.resultIndex; i < e.results.length; i++) if (e.results[i].isFinal) cb.current(e.results[i][0].transcript.trim());
     };
-    rec.onerror = (e) => {
-      setError(e.error === "not-allowed" ? "No tengo permiso para usar el micrófono." : "No he podido oírte.");
+    r.onend = () => setListening(false);
+    r.onerror = (e) => {
       setListening(false);
+      setError(e.error === "not-allowed" ? "Necesito permiso para usar el micrófono." : "No te he entendido bien. Prueba otra vez.");
     };
-    rec.onend = () => {
-      recRef.current = null;
-      setListening(false);
-    };
-    try {
-      rec.start();
-      recRef.current = rec;
-      setListening(true);
-      return true;
-    } catch {
-      return false;
-    }
-  }, [onText]);
-
-  const stop = useCallback(() => {
-    recRef.current?.stop();
-    setListening(false);
+    rec.current = r;
+    return () => r.stop();
   }, []);
 
-  return { supported, listening, error, start, stop };
+  const toggle = () => {
+    if (!rec.current) return;
+    setError("");
+    if (listening) {
+      rec.current.stop();
+      setListening(false);
+    } else {
+      try {
+        rec.current.start();
+        setListening(true);
+      } catch {
+        /* ya estaba escuchando */
+      }
+    }
+  };
+
+  return { supported, listening, error, toggle };
 }

@@ -62,8 +62,7 @@ export const ANIMALS: Record<AnimalId, AnimalInfo> = {
     soft: "#E4E9F2",
     tagline: "Irónico y elegante",
     bestFor: "Marcar estilo y diferenciarte",
-    voice:
-      "irónico, elegante y con humor seco: observador, con frases ingeniosas y sin exclamaciones exageradas",
+    voice: "irónico, elegante y con humor seco: observador, con frases ingeniosas y sin exclamaciones exageradas",
     headings: ["Lo que importa", "Para los curiosos", "Ah, y una cosa más"],
     greet: ["Hola. Sí, otra newsletter. Esta merece la pena.", "Estimado lector:"],
     sign: ["Sin prisa,", "Atentamente,"],
@@ -78,8 +77,7 @@ export const ANIMALS: Record<AnimalId, AnimalInfo> = {
     soft: "#F4E3D3",
     tagline: "Cálido y cercano",
     bestFor: "Cuidar a tu comunidad",
-    voice:
-      "cálido y cercano, como un amigo que te da un abrazo: frases sencillas, mucha empatía y agradecimiento",
+    voice: "cálido y cercano, como un amigo que te da un abrazo: frases sencillas, mucha empatía y agradecimiento",
     headings: ["Lo más bonito de la semana", "Para que lo sepas", "Y para terminar"],
     greet: ["¡Hola! Qué ganas de contarte cómo va todo.", "Estimado lector:"],
     sign: ["Un abrazo grande,", "Un cordial saludo,"],
@@ -94,8 +92,7 @@ export const ANIMALS: Record<AnimalId, AnimalInfo> = {
     soft: "#FFE3EB",
     tagline: "Rápido y enérgico",
     bestFor: "Novedades y noticias al momento",
-    voice:
-      "enérgico y veloz: titulares con fuerza, frases muy cortas y ritmo ágil, ideal para novedades",
+    voice: "enérgico y veloz: titulares con fuerza, frases muy cortas y ritmo ágil, ideal para novedades",
     headings: ["Lo último", "Apunta esto", "Y de regalo"],
     greet: ["¡Rápido, que hay novedades!", "Estimado lector, novedades breves:"],
     sign: ["¡Nos vemos enseguida!", "Hasta la próxima,"],
@@ -110,8 +107,7 @@ export const ANIMALS: Record<AnimalId, AnimalInfo> = {
     soft: "#E9E2FF",
     tagline: "Organizado y curioso",
     bestFor: "Resumir y reunir muchas cosas",
-    voice:
-      "organizado y curioso: resume muchas cosas en bloques claros y fáciles de escanear, con orden y precisión",
+    voice: "organizado y curioso: resume muchas cosas en bloques claros y fáciles de escanear, con orden y precisión",
     headings: ["Resumen", "Por si te lo perdiste", "Una cosa más"],
     greet: ["Hola, ocho brazos y cero desorden: aquí tienes el resumen.", "Estimado lector, resumen de la semana:"],
     sign: ["Hasta la próxima,", "Un saludo,"],

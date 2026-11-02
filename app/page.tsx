@@ -2,182 +2,178 @@ import Link from "next/link";
 import Animal from "@/components/Animal";
 import Brand from "@/components/Brand";
 import Demo from "@/components/Demo";
-import { ANIMAL_IDS, ANIMALS } from "@/lib/animals";
-import { FORMAT_IDS, FORMATS } from "@/lib/formats";
-import { FREE } from "@/lib/plans";
+import { ANIMALS, ANIMAL_IDS } from "@/lib/animals";
+import { FORMATS, FORMAT_IDS } from "@/lib/formats";
+import { FREE, PRO_PRICE_HINT } from "@/lib/plans";
 
 const STEPS = [
-  { n: "1", title: "Elige a tu redactor", text: "Un animal con personalidad o un copywriter a tu medida. Ponle nombre y enséñale cómo escribes." },
-  { n: "2", title: "Cuéntale tu semana", text: "Con la voz o con texto, y elige el estilo: historia, venta, humor… Sin páginas en blanco." },
-  { n: "3", title: "Aprueba y envía", text: "Léelo, pídele cambios hablando y envíalo a tu lista con un toque." },
+  { n: "1", t: "Cuéntalo", d: "Dicta o escribe lo que ha pasado, tal cual te salga. Dos frases bastan." },
+  { n: "2", t: "Revisa", d: "Tu redactor lo convierte en una newsletter con gancho. Cambia lo que quieras o pídele retoques." },
+  { n: "3", t: "Envía", d: "Un botón. Te dice a cuántas personas va antes de mandarla." },
 ];
 
-const FEATURES = [
-  { t: "Nunca inventa", d: "Solo usa lo que tú le cuentas. Nada de datos o cifras que no hayas dicho." },
-  { t: "Tú mandas siempre", d: "Nada se envía sin tu visto bueno. Primero te mandas una prueba a ti." },
-  { t: "Suscriptores en regla", d: "Formulario público con confirmación por correo y baja con un clic en cada envío." },
-  { t: "Tu estilo, no el de un robot", d: "Pégale un texto tuyo y aprende cómo escribes. Ajusta tono, longitud y emojis." },
-  { t: "Tu propio copywriter", d: "Crea un redactor a tu medida: su voz, sus reglas, lo que nunca diría. Suena a ti, no a un robot." },
-  { t: "Temas que se escriben solos", d: "Apunta tus ideas, elige un día y a primera hora el borrador está listo. Sin acordarte de nada." },
+const PERKS = [
+  { e: "🎙️", t: "Habla, no escribas", d: "Díctale tu semana con la voz, desde el móvil." },
+  { e: "🗓️", t: "Temas programados", d: "Apunta ideas, elige día y hora, y tu redactor las escribe solo." },
+  { e: "🔍", t: "No se inventa nada", d: "Solo usa los datos que le das. Si aparece una cifra rara, te avisa." },
+  { e: "🔑", t: "Sin contraseñas", d: "Entras con un enlace a tu correo. Nada que recordar." },
+  { e: "💌", t: "Tu propia página", d: "Un enlace para que la gente se apunte, con doble confirmación." },
+  { e: "👋", t: "Baja en un clic", d: "Tus lectores se van cuando quieren. Cumple la ley sin pensar en ella." },
 ];
 
 export default function Home() {
   return (
-    <>
-      <header className="mx-auto flex w-full max-w-6xl items-center justify-between px-5 py-5">
+    <div className="overflow-x-hidden">
+      <header className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
         <Brand />
-        <nav className="flex items-center gap-1 text-sm">
-          <a href="#equipo" className="hidden rounded-full px-3 py-2 text-muted hover:text-ink sm:block">Redactores</a>
-          <a href="#estilos" className="hidden rounded-full px-3 py-2 text-muted hover:text-ink sm:block">Estilos</a>
-          <a href="#como" className="hidden rounded-full px-3 py-2 text-muted hover:text-ink sm:block">Cómo funciona</a>
-          <a href="#precio" className="hidden rounded-full px-3 py-2 text-muted hover:text-ink sm:block">Precio</a>
-          <Link href="/login" className="btn btn-primary ml-2 !px-5 !py-2.5">Entrar</Link>
+        <nav className="flex items-center gap-2">
+          <Link href="/login" className="btn btn-soft !px-4 !py-2 text-sm">Entrar</Link>
         </nav>
       </header>
 
-      <main className="flex-1">
-        {/* HERO */}
-        <section className="mx-auto grid w-full max-w-6xl items-center gap-12 px-5 pb-20 pt-8 lg:grid-cols-[1.1fr_0.9fr] lg:pt-14">
-          <div className="anim-fade-up text-center lg:text-left">
-            <div className="mb-6 flex justify-center gap-1 lg:justify-start" aria-hidden>
-              {ANIMAL_IDS.map((id) => (
-                <Animal key={id} id={id} size={42} className="-ml-2 first:ml-0 rounded-full ring-2 ring-white" />
-              ))}
-            </div>
-            <h1 className="text-5xl font-bold leading-[1.02] sm:text-6xl lg:text-7xl">
-              Contrata a tu
-              <br />
-              <span className="text-gradient">redactor de newsletters.</span>
-            </h1>
-            <p className="mx-auto mt-6 max-w-xl text-lg leading-relaxed text-muted lg:mx-0">
-              Elige un animal, ponle nombre y cuéntale tu semana. Él escribe la newsletter con tu estilo; tú solo la
-              apruebas y la envías.
-            </p>
-            <div className="mt-8 flex flex-wrap justify-center gap-3 lg:justify-start">
-              <Link href="/login" className="btn btn-primary !px-7 !py-3.5">Crear mi redactor gratis</Link>
-              <a href="#demo" className="btn btn-soft !px-7 !py-3.5">Probar la demo</a>
-            </div>
-            <p className="mt-4 text-sm text-muted">Sin tarjeta. Sin contraseñas: entras con un enlace a tu correo.</p>
+      <main>
+        {/* Hero */}
+        <section className="mx-auto max-w-6xl px-4 pt-10 pb-14 text-center sm:px-6 sm:pt-16">
+          <div className="anim-fade-up mx-auto mb-6 flex justify-center -space-x-3">
+            {ANIMAL_IDS.map((id, i) => (
+              <span key={id} className="anim-pop rounded-full ring-4 ring-[#fbfaf8]" style={{ animationDelay: `${i * 70}ms` }}>
+                <Animal id={id} size={52} />
+              </span>
+            ))}
           </div>
-          <div id="demo" className="scroll-mt-8">
-            <Demo />
+          <h1 className="anim-fade-up mx-auto max-w-3xl text-[2.6rem] leading-[1.05] font-bold sm:text-6xl">
+            Cuéntaselo a un zorro.
+            <br />
+            <span className="text-gradient">Él te escribe la newsletter.</span>
+          </h1>
+          <p className="anim-fade-up mx-auto mt-5 max-w-xl text-lg text-muted" style={{ animationDelay: "120ms" }}>
+            Contrata a un redactor con personalidad, cuéntale tu semana en dos frases y envía a tu lista una newsletter que la gente sí abre.
+          </p>
+          <div className="anim-fade-up mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row" style={{ animationDelay: "200ms" }}>
+            <Link href="/login" className="btn btn-primary w-full sm:w-auto">Empieza gratis</Link>
+            <a href="#demo" className="btn btn-soft w-full sm:w-auto">Pruébalo sin registrarte</a>
           </div>
+          <p className="mt-4 text-sm text-muted">Sin tarjeta. Sin contraseñas. En español.</p>
         </section>
 
-        {/* EQUIPO */}
-        <section id="equipo" className="mx-auto w-full max-w-6xl scroll-mt-8 px-5 py-20">
+        {/* Demo */}
+        <section id="demo" className="mx-auto max-w-6xl scroll-mt-6 px-4 pb-20 sm:px-6">
+          <h2 className="mb-2 text-center text-3xl font-bold sm:text-4xl">Pruébalo ahora</h2>
+          <p className="mb-8 text-center text-muted">Elige un redactor y mira lo que hace con la misma semana.</p>
+          <Demo />
+        </section>
+
+        {/* Plantilla */}
+        <section className="mx-auto max-w-6xl px-4 pb-20 sm:px-6">
           <h2 className="text-center text-3xl font-bold sm:text-4xl">Conoce a la plantilla</h2>
-          <p className="mx-auto mt-3 max-w-xl text-center text-muted">
-            Seis personalidades para seis formas de contar las cosas. Puedes tener más de uno.
-          </p>
-          <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <p className="mt-2 mb-8 text-center text-muted">Seis personalidades. O créate uno a medida, con tu voz.</p>
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
             {ANIMAL_IDS.map((id) => {
               const a = ANIMALS[id];
               return (
-                <div key={id} className="card flex gap-4 p-5" style={{ background: `linear-gradient(160deg, ${a.soft}, #fff 70%)` }}>
-                  <Animal id={id} size={76} className="shrink-0" />
-                  <div>
-                    <p className="font-semibold">
-                      {a.defaultName} <span className="font-normal text-muted">· {a.species}</span>
-                    </p>
-                    <p className="text-sm font-medium" style={{ color: a.color }}>{a.tagline}</p>
-                    <p className="mt-1 text-sm text-muted">Ideal para: {a.bestFor.toLowerCase()}.</p>
-                    <p className="mt-2 text-sm italic text-ink/80">«{a.greet[0]}»</p>
-                  </div>
+                <div key={id} className="card p-4 sm:p-5">
+                  <Animal id={id} size={64} />
+                  <p className="mt-3 text-lg font-bold">{a.defaultName} <span className="text-sm font-normal text-muted">· {a.species}</span></p>
+                  <p className="text-sm font-semibold" style={{ color: a.color }}>{a.tagline}</p>
+                  <p className="mt-1 text-sm text-muted">Ideal para {a.bestFor.toLowerCase()}.</p>
                 </div>
               );
             })}
           </div>
         </section>
 
-        {/* ESTILOS */}
-        <section id="estilos" className="mx-auto w-full max-w-4xl scroll-mt-8 px-5 py-20 text-center">
-          <h2 className="text-3xl font-bold sm:text-4xl">Cada newsletter, con su estilo de copy</h2>
-          <p className="mx-auto mt-3 max-w-xl text-muted">
-            Tu redactor domina las técnicas de los buenos copywriters: ganchos, historias, estructura y ritmo. Tú solo eliges cómo quieres contarlo.
-          </p>
-          <div className="mt-8 flex flex-wrap justify-center gap-2.5">
-            {FORMAT_IDS.filter((f) => f !== "auto").map((f) => (
-              <span key={f} className="rounded-full border border-line bg-white px-4 py-2 text-sm shadow-sm">
-                <span aria-hidden>{FORMATS[f].emoji}</span> {FORMATS[f].label}
+        {/* Estilos */}
+        <section className="mx-auto max-w-4xl px-4 pb-20 text-center sm:px-6">
+          <h2 className="text-3xl font-bold sm:text-4xl">Cada newsletter, con su estilo</h2>
+          <p className="mt-2 mb-8 text-muted">Diez formas de contarlo, escritas con oficio de verdad.</p>
+          <div className="flex flex-wrap justify-center gap-2">
+            {FORMAT_IDS.filter((id) => id !== "auto").map((id) => (
+              <span key={id} className="chip cursor-default" title={FORMATS[id].hint}>
+                {FORMATS[id].emoji} {FORMATS[id].label}
               </span>
             ))}
           </div>
         </section>
 
-        {/* CÓMO FUNCIONA */}
-        <section id="como" className="mx-auto w-full max-w-6xl scroll-mt-8 px-5 py-20">
-          <h2 className="text-center text-3xl font-bold sm:text-4xl">Tres gestos y está enviada</h2>
-          <div className="mt-12 grid gap-4 md:grid-cols-3">
+        {/* Pasos */}
+        <section className="mx-auto max-w-6xl px-4 pb-20 sm:px-6">
+          <h2 className="mb-8 text-center text-3xl font-bold sm:text-4xl">Tres gestos y está enviada</h2>
+          <ol className="grid gap-3 md:grid-cols-3">
             {STEPS.map((s) => (
-              <div key={s.n} className="card p-7">
-                <span className="grid h-9 w-9 place-items-center rounded-full bg-ink text-sm font-semibold text-white">{s.n}</span>
-                <h3 className="mt-4 text-xl font-semibold">{s.title}</h3>
-                <p className="mt-2 leading-relaxed text-muted">{s.text}</p>
+              <li key={s.n} className="card p-6">
+                <span className="text-gradient text-4xl font-bold">{s.n}</span>
+                <p className="mt-2 text-xl font-bold">{s.t}</p>
+                <p className="mt-1 text-muted">{s.d}</p>
+              </li>
+            ))}
+          </ol>
+        </section>
+
+        {/* Ventajas */}
+        <section className="mx-auto max-w-6xl px-4 pb-20 sm:px-6">
+          <h2 className="mb-8 text-center text-3xl font-bold sm:text-4xl">Hecho para que no te dé pereza</h2>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {PERKS.map((p) => (
+              <div key={p.t} className="card p-5">
+                <span className="text-2xl" aria-hidden>{p.e}</span>
+                <p className="mt-2 font-bold">{p.t}</p>
+                <p className="text-sm text-muted">{p.d}</p>
               </div>
             ))}
           </div>
         </section>
 
-        {/* FEATURES */}
-        <section className="mx-auto w-full max-w-6xl px-5 py-20">
-          <h2 className="text-center text-3xl font-bold sm:text-4xl">Hecho para que no te dé pereza</h2>
-          <div className="mt-12 grid gap-x-10 gap-y-8 sm:grid-cols-2 lg:grid-cols-3">
-            {FEATURES.map((f) => (
-              <div key={f.t}>
-                <h3 className="font-semibold">{f.t}</h3>
-                <p className="mt-1.5 leading-relaxed text-muted">{f.d}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* PRECIO */}
-        <section id="precio" className="mx-auto w-full max-w-3xl scroll-mt-8 px-5 py-20">
-          <h2 className="text-center text-3xl font-bold sm:text-4xl">Empieza gratis</h2>
-          <div className="mt-10 grid gap-4 sm:grid-cols-2">
-            <div className="card p-7">
-              <p className="font-semibold">Gratis</p>
+        {/* Planes */}
+        <section className="mx-auto max-w-4xl px-4 pb-20 sm:px-6">
+          <h2 className="mb-8 text-center text-3xl font-bold sm:text-4xl">Empieza gratis</h2>
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="card p-6">
+              <p className="text-lg font-bold">Gratis</p>
               <p className="mt-1 text-4xl font-bold">0 €</p>
-              <ul className="mt-5 space-y-2 text-sm text-muted">
-                <li>✓ Hasta {FREE.writers} redactores (animales o a medida)</li>
-                <li>✓ Temas programados que se escriben solos</li>
+              <ul className="mt-4 space-y-2 text-sm">
+                <li>✓ {FREE.writers} redactores</li>
                 <li>✓ Hasta {FREE.subscribers} suscriptores</li>
-                <li>✓ {FREE.aiPerDay} borradores o cambios al día</li>
-                <li>✓ Página pública de suscripción</li>
+                <li>✓ {FREE.aiPerDay} borradores al día</li>
+                <li>✓ {FREE.sendsPerDay} envíos al día</li>
+                <li>✓ Temas programados</li>
               </ul>
               <Link href="/login" className="btn btn-primary mt-6 w-full">Empezar</Link>
             </div>
-            <div className="card p-7 opacity-80">
-              <p className="font-semibold">Pro</p>
-              <p className="mt-1 text-4xl font-bold text-muted">Pronto</p>
-              <ul className="mt-5 space-y-2 text-sm text-muted">
-                <li>✓ Más redactores y más suscriptores</li>
-                <li>✓ Envío automático</li>
-                <li>✓ Imágenes y estadísticas</li>
-                <li>✓ Sin “Escrito con AutoMailX”</li>
+            <div className="card relative overflow-hidden p-6">
+              <span className="pill absolute top-5 right-5 bg-[#f1edff] text-brand">{PRO_PRICE_HINT}</span>
+              <p className="text-lg font-bold">Premium</p>
+              <p className="mt-1 text-4xl font-bold text-muted">—</p>
+              <ul className="mt-4 space-y-2 text-sm text-muted">
+                <li>✓ Más redactores a medida</li>
+                <li>✓ Más suscriptores</li>
+                <li>✓ Tu dominio como remitente</li>
+                <li>✓ Estadísticas de aperturas</li>
               </ul>
-              <button disabled className="btn btn-soft mt-6 w-full">Próximamente</button>
             </div>
           </div>
         </section>
 
-        {/* CTA FINAL */}
-        <section className="mx-auto w-full max-w-3xl px-5 pb-24 pt-8 text-center">
-          <h2 className="text-4xl font-bold sm:text-5xl">¿Quién va a escribir <span className="text-gradient">la tuya</span>?</h2>
-          <Link href="/login" className="btn btn-primary mt-8 !px-8 !py-4 !text-base">Elegir a mi redactor</Link>
+        {/* CTA final */}
+        <section className="mx-auto max-w-3xl px-4 pb-24 text-center sm:px-6">
+          <div className="card px-6 py-12">
+            <div className="flex justify-center"><Animal id="zorro" size={80} /></div>
+            <h2 className="mt-4 text-3xl font-bold">Rufo está listo para empezar</h2>
+            <p className="mx-auto mt-2 max-w-md text-muted">Tu próxima newsletter está a dos frases de distancia.</p>
+            <Link href="/login" className="btn btn-primary mt-6">Contratar a mi redactor</Link>
+          </div>
         </section>
       </main>
 
-      <footer className="border-t border-line px-5 py-8">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 text-sm text-muted">
-          <Brand size="sm" />
-          <div className="flex gap-5">
+      <footer className="border-t border-line">
+        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-4 py-6 text-sm text-muted sm:flex-row sm:px-6">
+          <Brand size={24} />
+          <nav className="flex gap-4">
             <Link href="/privacidad" className="hover:text-ink">Privacidad</Link>
             <Link href="/terminos" className="hover:text-ink">Términos</Link>
-          </div>
+            <Link href="/login" className="hover:text-ink">Entrar</Link>
+          </nav>
         </div>
       </footer>
-    </>
+    </div>
   );
 }

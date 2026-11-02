@@ -1,67 +1,34 @@
-import { body } from "@/lib/api";
-import { q1, run } from "@/lib/db";
-import { mailEnabled, sendMail, simpleMail } from "@/lib/email";
-import { FREE } from "@/lib/plans";
-import { hit } from "@/lib/rate";
-import { baseUrl, clean, ipHash, isEmail, json, newToken, normEmail, now, sameOrigin, uid } from "@/lib/util";
+import { eq, one, update } from "@/lib/db";
+import { sendMail } from "@/lib/email";
+import { baseUrl, open, readBody, sameOrigin } from "@/lib/http";
+import { clientIp, hit } from "@/lib/rate";
+import { addSubscribers, confirmMail } from "@/lib/subscribers";
+import { clean, isEmail, normEmail } from "@/lib/util";
 
-export async function POST(req: Request) {
-  if (!sameOrigin(req)) return json({ error: "Petición no permitida." }, 403);
-  if (!(await hit(`sub:${ipHash(req)}`, 20))) return json({ error: "Demasiados intentos. Prueba más tarde." }, 429);
+/** Formulario público de /s/[slug]. Siempre doble confirmación. */
+export const POST = open(async (req) => {
+  const b = await readBody(req);
+  const slug = clean(b.slug, 60);
+  const back = (q: string) => Response.redirect(`${baseUrl(req)}/s/${encodeURIComponent(slug)}?${q}`, 303);
+  if (!sameOrigin(req)) return back("error=origen");
+  if (clean(b.website, 200)) return back("ok=1"); // trampa para bots
+  const email = normEmail(b.email);
+  if (!isEmail(email)) return back("error=correo");
+  if (!(await hit(`sub-ip:${clientIp(req)}`, 20))) return back("error=limite");
 
-  const b = await body<{ slug?: string; email?: string; name?: string; hp?: string }>(req);
-  if (b.hp) return json({ ok: true, needsConfirm: true }); // trampa para bots
-  const email = normEmail(String(b.email ?? ""));
-  if (!isEmail(email)) return json({ error: "Escribe un correo válido." }, 400);
-  // evita usar el formulario para bombardear a una persona con correos de confirmación
-  if (!(await hit(`subemail:${email}`, 3))) return json({ ok: true, needsConfirm: true });
+  const pub = await one<{ user_id: string; name: string }>("publications", { select: "user_id,name", slug: eq(slug) });
+  if (!pub) return back("error=noexiste");
 
-  const pub = await q1<{ user_id: string; name: string; sender_name: string; reply_to: string | null }>(
-    "SELECT user_id, name, sender_name, reply_to FROM publications WHERE slug = ?",
-    [String(b.slug ?? "")],
-  );
-  if (!pub) return json({ error: "Newsletter no encontrada." }, 404);
-
-  const total = await q1<{ n: number }>(
-    "SELECT COUNT(*) AS n FROM subscribers WHERE user_id = ? AND status != 'unsubscribed'",
-    [pub.user_id],
-  );
-  const existing = await q1<{ id: string; status: string; token: string }>(
-    "SELECT id, status, token FROM subscribers WHERE user_id = ? AND email = ?",
-    [pub.user_id, email],
-  );
-  if (existing?.status === "confirmed") return json({ ok: true, needsConfirm: false });
-  if (!existing && (total?.n ?? 0) >= FREE.subscribers) {
-    return json({ error: "Esta newsletter no admite más suscriptores ahora mismo." }, 409);
-  }
-
-  const demo = !mailEnabled();
-  const status = demo ? "confirmed" : "pending";
-  let token = existing?.token;
+  const existing = await one<{ status: string; token: string }>("subscribers", { select: "status,token", user_id: eq(pub.user_id), email: eq(email) });
   if (existing) {
-    await run("UPDATE subscribers SET status = ?, name = ? WHERE id = ?", [status, clean(b.name, 80), existing.id]);
-  } else {
-    token = newToken();
-    await run(
-      "INSERT INTO subscribers(id,user_id,email,name,status,token,source,created_at) VALUES(?,?,?,?,?,?,'form',?)",
-      [uid(), pub.user_id, email, clean(b.name, 80), status, token, now()],
-    );
+    if (existing.status !== "confirmed") {
+      // Quien se dio de baja o no confirmó puede volver: se le pide confirmar otra vez.
+      await update("subscribers", { user_id: eq(pub.user_id), email: eq(email) }, { status: "pending" });
+      await sendMail(confirmMail(email, existing.token, pub.name, baseUrl(req)));
+    }
+    return back("ok=1");
   }
-  if (demo) return json({ ok: true, needsConfirm: false, demo: true });
-
-  const link = `${await baseUrl()}/c/${token}`;
-  const m = simpleMail({
-    heading: `Confirma tu suscripción a ${pub.name}`,
-    body: "Pulsa el botón para confirmar que quieres recibir esta newsletter. Si no has sido tú, ignora este correo y no pasará nada.",
-    buttonText: "Confirmar suscripción",
-    buttonUrl: link,
-  });
-  await sendMail({
-    to: email,
-    subject: `Confirma tu suscripción a ${pub.name}`,
-    ...m,
-    fromName: pub.sender_name,
-    replyTo: pub.reply_to ?? undefined,
-  });
-  return json({ ok: true, needsConfirm: true });
-}
+  const r = await addSubscribers(pub.user_id, [email], { consent: false, source: "form", name: clean(b.name, 80), base: baseUrl(req) });
+  if (r.error) return back("error=lleno");
+  return back("ok=1");
+});

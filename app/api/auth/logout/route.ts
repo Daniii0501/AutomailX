@@ -1,11 +1,11 @@
-import { NextResponse } from "next/server";
 import { COOKIE, endSession } from "@/lib/auth";
-import { sameOrigin } from "@/lib/util";
+import { baseUrl, cookieFrom, fail, open, sameOrigin } from "@/lib/http";
 
-export async function POST(req: Request) {
-  if (!sameOrigin(req)) return Response.json({ error: "Petición no permitida." }, { status: 403 });
-  await endSession();
-  const res = NextResponse.json({ ok: true });
-  res.cookies.set(COOKIE, "", { path: "/", maxAge: 0 });
-  return res;
-}
+export const POST = open(async (req) => {
+  if (!sameOrigin(req)) return fail("Petición no permitida.", 403);
+  await endSession(cookieFrom(req, COOKIE)).catch(() => {});
+  return new Response(null, {
+    status: 303,
+    headers: { location: `${baseUrl(req)}/`, "set-cookie": `${COOKIE}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax` },
+  });
+});

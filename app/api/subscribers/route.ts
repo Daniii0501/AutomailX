@@ -1,55 +1,19 @@
-import { body, guard } from "@/lib/api";
-import { countSubscribers } from "@/lib/data";
-import { q1, run } from "@/lib/db";
-import { FREE } from "@/lib/plans";
-import { clean, isEmail, json, newToken, normEmail, now, uid } from "@/lib/util";
+import { eq, select } from "@/lib/db";
+import { authed, baseUrl, fail, json, readBody } from "@/lib/http";
+import { addSubscribers, emailsIn, type Subscriber } from "@/lib/subscribers";
+import { clean } from "@/lib/util";
 
-export async function POST(req: Request) {
-  const user = await guard(req);
-  if (user instanceof Response) return user;
+export const GET = authed(async (_req, user) => {
+  const subs = await select<Subscriber>("subscribers", { select: "id,email,name,status,source,created_at", user_id: eq(user.id), order: "created_at.desc", limit: 1000 });
+  return json({ subscribers: subs });
+});
 
-  const b = await body<{ emails?: string; name?: string; consent?: boolean }>(req);
-  if (b.consent !== true) {
-    return json({ error: "Confirma que tienes permiso de estas personas para escribirles." }, 400);
-  }
-
-  const parts = String(b.emails ?? "")
-    .split(/[\s,;]+/)
-    .map(normEmail)
-    .filter(Boolean);
-  const unique = [...new Set(parts)].slice(0, 2000);
-  if (unique.length === 0) return json({ error: "Escribe al menos un correo." }, 400);
-
-  const single = unique.length === 1 ? clean(b.name, 80) : "";
-  let current = await countSubscribers(user.id);
-  let added = 0;
-  let skipped = 0;
-  let invalid = 0;
-  let overLimit = 0;
-
-  for (const email of unique) {
-    if (!isEmail(email)) {
-      invalid++;
-      continue;
-    }
-    const existing = await q1<{ status: string }>("SELECT status FROM subscribers WHERE user_id = ? AND email = ?", [
-      user.id,
-      email,
-    ]);
-    if (existing) {
-      skipped++; // incluye a quien ya se dio de baja: se respeta su decisión
-      continue;
-    }
-    if (current >= FREE.subscribers) {
-      overLimit++;
-      continue;
-    }
-    await run(
-      "INSERT INTO subscribers(id,user_id,email,name,status,token,source,created_at) VALUES(?,?,?,?,'confirmed',?,?,?)",
-      [uid(), user.id, email, single, newToken(), unique.length > 1 ? "import" : "manual", now()],
-    );
-    current++;
-    added++;
-  }
-  return json({ added, skipped, invalid, overLimit, limit: FREE.subscribers });
-}
+/** Añade uno o varios correos (pegados). */
+export const POST = authed(async (req, user) => {
+  const b = await readBody(req);
+  const emails = emailsIn(clean(b.emails, 50_000));
+  if (!emails.length) return fail("No encuentro ningún correo válido en lo que has escrito.");
+  const r = await addSubscribers(user.id, emails, { consent: b.consent === true, source: emails.length > 1 ? "import" : "manual", name: emails.length === 1 ? clean(b.name, 80) : "", base: baseUrl(req) });
+  if (r.error && !r.added) return fail(r.error, 403);
+  return json({ ok: true, ...r });
+});

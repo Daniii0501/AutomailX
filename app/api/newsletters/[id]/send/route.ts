@@ -1,26 +1,15 @@
-import { body, guard } from "@/lib/api";
+import { authed, baseUrl, fail, json, readBody } from "@/lib/http";
 import { deliverNewsletter, sendTest } from "@/lib/send";
-import { baseUrl, json } from "@/lib/util";
 
-export const maxDuration = 60;
+export const maxDuration = 120;
 
-type Ctx = { params: Promise<{ id: string }> };
+type P = { id: string };
 
-export async function POST(req: Request, ctx: Ctx) {
-  const user = await guard(req);
-  if (user instanceof Response) return user;
-  const { id } = await ctx.params;
-
-  const mode = (await body<{ mode?: string }>(req)).mode === "test" ? "test" : "all";
-  const base = await baseUrl();
-
-  if (mode === "test") {
-    const r = await sendTest(user, id, base);
-    if (!r.ok) return json({ error: r.error }, r.status);
-    return json({ ok: true, demo: r.demo, to: r.to });
-  }
-
-  const r = await deliverNewsletter(user, id, base);
-  if (!r.ok) return json({ error: r.error }, r.status);
-  return json({ ok: true, demo: r.demo, sent: r.sent, partial: r.partial });
-}
+/** { test: true } -> prueba a tu correo. Si no, envío real a la lista. */
+export const POST = authed<P>(async (req, user, { id }) => {
+  const b = await readBody(req);
+  const base = baseUrl(req);
+  const r = b.test === true ? await sendTest(user, id, base) : await deliverNewsletter(user, id, base);
+  if (!r.ok) return fail(r.error, r.status);
+  return json(r);
+});

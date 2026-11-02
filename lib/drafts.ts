@@ -1,23 +1,42 @@
-import { writeNewsletter } from "./ai";
-import type { Writer } from "./data";
-import { run } from "./db";
-import { isFormat, type FormatId } from "./formats";
+import "server-only";
+import { aiEnabled, suspiciousNumbers, writeNewsletter } from "./ai";
+import { insert } from "./db";
+import type { FormatId } from "./formats";
+import { lookOf, type WriterProfile } from "./newsletter";
 import { FREE } from "./plans";
 import { hit } from "./rate";
-import { now, uid } from "./util";
 
-export type DraftResult = { ok: true; id: string; source: string } | { ok: false; reason: "limit" };
+export type DraftResult = { ok: true; id: string; source: "claude" | "simulated" } | { ok: false; error: string; status: number };
 
-/** Escribe una newsletter con el redactor y la guarda como borrador. Cuenta para el límite diario de IA. */
-export async function createDraft(userId: string, writer: Writer, brief: string, format?: string): Promise<DraftResult> {
-  if (!(await hit(`ai:${userId}`, FREE.aiPerDay))) return { ok: false, reason: "limit" };
+/** Escribe un borrador con el redactor y lo guarda. Lo usan el panel, "Escribir ahora" y el cron. */
+export async function createDraft(userId: string, writer: WriterProfile, brief: string, format: FormatId): Promise<DraftResult> {
+  if (!(await hit(`ai:${userId}`, FREE.aiPerDay))) {
+    return { ok: false, status: 429, error: `Has llegado al límite de ${FREE.aiPerDay} borradores de hoy. Mañana más.` };
+  }
+  const fmt = format === "auto" ? writer.format : format;
+  const w = await writeNewsletter(brief, writer, fmt);
 
-  const fmt: FormatId = isFormat(format) ? format : writer.format;
-  const { newsletter, source } = await writeNewsletter(brief, writer, fmt);
-  const id = uid();
-  await run(
-    "INSERT INTO newsletters(id,user_id,writer_id,brief,content,status,source,format,created_at,updated_at) VALUES(?,?,?,?,?,'draft',?,?,?,?)",
-    [id, userId, writer.id, brief, JSON.stringify(newsletter), source, fmt, now(), now()],
-  );
-  return { ok: true, id, source };
+  const warnings: string[] = [];
+  if (w.source === "simulated") {
+    warnings.push(
+      aiEnabled()
+        ? `La IA ha fallado (${w.error ?? "error desconocido"}) y este borrador es un apaño automático. Prueba a escribirlo de nuevo.`
+        : "Modo simulado: falta la clave de la IA (ANTHROPIC_API_KEY), así que este borrador solo reordena tus notas.",
+    );
+  } else {
+    const sus = suspiciousNumbers(brief, w.newsletter);
+    if (sus.length) warnings.push(`Revisa estas cifras: no aparecen en tus notas (${sus.join(", ")}).`);
+  }
+
+  const [row] = await insert<{ id: string }>("newsletters", {
+    user_id: userId,
+    writer_id: writer.id,
+    look: lookOf(writer),
+    brief,
+    format: fmt,
+    content: w.newsletter,
+    warnings,
+    source: w.source,
+  });
+  return { ok: true, id: row.id, source: w.source };
 }

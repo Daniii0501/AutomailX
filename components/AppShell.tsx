@@ -1,93 +1,77 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import Brand from "@/components/Brand";
-import { api } from "@/lib/client";
+import { usePathname } from "next/navigation";
+import Brand from "./Brand";
 
 const NAV = [
-  { href: "/panel", label: "Inicio", icon: "M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z" },
-  { href: "/panel/temas", label: "Temas", icon: "M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01" },
-  { href: "/panel/audiencia", label: "Audiencia", icon: "M16 11a4 4 0 1 0-8 0M4 21a8 8 0 0 1 16 0" },
-  { href: "/panel/historial", label: "Historial", icon: "M12 7v5l3 2M21 12a9 9 0 1 1-3-6.7M21 4v5h-5" },
-  { href: "/panel/ajustes", label: "Ajustes", icon: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19 12a7 7 0 0 0-.1-1.2l2-1.6-2-3.4-2.4 1a7 7 0 0 0-2-1.2L14 3h-4l-.5 2.6a7 7 0 0 0-2 1.2l-2.4-1-2 3.4 2 1.6A7 7 0 0 0 5 12c0 .4 0 .8.1 1.2l-2 1.6 2 3.4 2.4-1a7 7 0 0 0 2 1.2L10 21h4l.5-2.6a7 7 0 0 0 2-1.2l2.4 1 2-3.4-2-1.6c.1-.4.1-.8.1-1.2z" },
+  { href: "/panel", label: "Escribir", icon: "M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" },
+  { href: "/panel/temas", label: "Temas", icon: "M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z" },
+  { href: "/panel/audiencia", label: "Audiencia", icon: "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm13 10v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8" },
+  { href: "/panel/historial", label: "Historial", icon: "M3 3v5h5M3.05 13A9 9 0 1 0 6 5.3L3 8M12 7v5l4 2" },
+  { href: "/panel/ajustes", label: "Ajustes", icon: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z" },
 ];
-
-function active(path: string, href: string) {
-  return href === "/panel" ? path === "/panel" || path.startsWith("/panel/n/") || path.startsWith("/panel/redactores") : path.startsWith(href);
-}
 
 function Icon({ d }: { d: string }) {
   return (
-    <svg viewBox="0 0 24 24" className="h-[22px] w-[22px]" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <path d={d} />
     </svg>
   );
 }
 
-export default function AppShell({
-  email,
-  banner,
-  children,
-}: {
-  email: string;
-  banner: string | null;
-  children: React.ReactNode;
-}) {
+export default function AppShell({ email, children }: { email: string; children: React.ReactNode }) {
   const path = usePathname();
-  const router = useRouter();
-
-  async function logout() {
-    await api("/api/auth/logout", "POST");
-    router.push("/");
-    router.refresh();
-  }
+  const active = (href: string) => (href === "/panel" ? path === "/panel" || path.startsWith("/panel/n/") || path.startsWith("/panel/redactores") : path.startsWith(href));
 
   return (
-    <div className="flex min-h-screen flex-col">
-      {banner && (
-        <div className="bg-amber-100 px-4 py-2 text-center text-xs text-amber-900" role="status">
-          {banner}
+    <div className="min-h-dvh md:flex">
+      {/* Barra lateral (escritorio) */}
+      <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-r border-line bg-white/60 px-4 py-6 backdrop-blur md:flex">
+        <div className="px-2">
+          <Brand href="/panel" />
         </div>
-      )}
-      <header className="sticky top-0 z-30 border-b border-line bg-bg/80 backdrop-blur-xl">
-        <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-5">
-          <Brand href="/panel" size="sm" />
-          <nav className="hidden items-center gap-1 md:flex" aria-label="Principal">
-            {NAV.map((n) => (
-              <Link
-                key={n.href}
-                href={n.href}
-                prefetch={false}
-                className={`rounded-full px-4 py-2 text-sm font-medium transition ${active(path, n.href) ? "bg-ink text-white" : "text-muted hover:text-ink"}`}
-              >
-                {n.label}
-              </Link>
-            ))}
-          </nav>
-          <div className="flex items-center gap-3 text-sm">
-            <span className="hidden max-w-[180px] truncate text-muted lg:block">{email}</span>
-            <button onClick={logout} className="text-muted hover:text-ink">Salir</button>
-          </div>
-        </div>
-      </header>
-
-      <main className="mx-auto w-full max-w-5xl flex-1 px-5 pb-28 pt-8 md:pb-14">{children}</main>
-
-      <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-bg/90 backdrop-blur-xl md:hidden" aria-label="Principal móvil">
-        <div className="mx-auto grid max-w-md grid-cols-5 px-2 pb-[max(0.4rem,env(safe-area-inset-bottom))] pt-2">
+        <nav className="mt-8 flex flex-col gap-1" aria-label="Panel">
           {NAV.map((n) => (
             <Link
               key={n.href}
               href={n.href}
-              prefetch={false}
-              className={`flex flex-col items-center gap-0.5 rounded-xl py-1.5 text-[11px] font-medium ${active(path, n.href) ? "text-brand" : "text-muted"}`}
+              aria-current={active(n.href) ? "page" : undefined}
+              className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-[0.95rem] font-medium transition ${active(n.href) ? "bg-ink text-white" : "text-ink hover:bg-[#f4f2ef]"}`}
             >
               <Icon d={n.icon} />
               {n.label}
             </Link>
           ))}
+        </nav>
+        <div className="mt-auto px-2">
+          <p className="truncate text-xs text-muted" title={email}>{email}</p>
+          <form method="post" action="/api/auth/logout">
+            <button className="mt-1 text-xs font-semibold text-muted underline underline-offset-2 hover:text-ink">Cerrar sesión</button>
+          </form>
         </div>
+      </aside>
+
+      {/* Cabecera (móvil) */}
+      <header className="sticky top-0 z-20 flex items-center justify-between border-b border-line bg-[#fbfaf8]/85 px-4 py-3 backdrop-blur md:hidden">
+        <Brand href="/panel" size={26} />
+      </header>
+
+      <main className="mx-auto w-full max-w-3xl flex-1 px-4 pt-6 pb-28 md:px-8 md:pt-10 md:pb-16">{children}</main>
+
+      {/* Barra inferior (móvil) */}
+      <nav aria-label="Panel" className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-line bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
+        {NAV.map((n) => (
+          <Link
+            key={n.href}
+            href={n.href}
+            aria-current={active(n.href) ? "page" : undefined}
+            className={`flex flex-col items-center gap-0.5 py-2.5 text-[0.68rem] font-medium ${active(n.href) ? "text-brand" : "text-muted"}`}
+          >
+            <Icon d={n.icon} />
+            {n.label}
+          </Link>
+        ))}
       </nav>
     </div>
   );

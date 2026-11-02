@@ -3,11 +3,11 @@ import Animal from "@/components/Animal";
 
 export default function NotFound() {
   return (
-    <main className="mx-auto flex min-h-screen max-w-md flex-col items-center justify-center px-6 text-center">
-      <Animal id="gato" size={110} />
-      <h1 className="mt-6 text-3xl font-bold">No encuentro esta página</h1>
-      <p className="mt-2 text-muted">Puede que el enlace esté mal o que ya no exista.</p>
-      <Link href="/" className="btn btn-primary mt-8">Ir al inicio</Link>
+    <main className="mx-auto flex min-h-dvh max-w-md flex-col items-center justify-center px-4 text-center">
+      <Animal id="buho" size={96} />
+      <h1 className="mt-4 text-3xl font-bold">Aquí no hay nada</h1>
+      <p className="mt-2 text-muted">Atlas ha buscado por todas partes y esta página no existe.</p>
+      <Link href="/" className="btn btn-primary mt-6">Ir a la portada</Link>
     </main>
   );
 }

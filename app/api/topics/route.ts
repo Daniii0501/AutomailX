@@ -1,25 +1,13 @@
-import { body, guard } from "@/lib/api";
 import { getWriter } from "@/lib/data";
-import { q1, run } from "@/lib/db";
+import { count, eq, insert } from "@/lib/db";
+import { authed, fail, json, readBody } from "@/lib/http";
 import { MAX_TOPICS, parseTopic } from "@/lib/topics";
-import { json, now, uid } from "@/lib/util";
 
-export async function POST(req: Request) {
-  const user = await guard(req);
-  if (user instanceof Response) return user;
-
-  const t = parseTopic(await body(req));
-  if (typeof t === "string") return json({ error: t }, 400);
-  if (!(await getWriter(user.id, t.writerId))) return json({ error: "Redactor no encontrado." }, 404);
-
-  const count = await q1<{ n: number }>("SELECT COUNT(*) AS n FROM topics WHERE user_id = ?", [user.id]);
-  if ((count?.n ?? 0) >= MAX_TOPICS) return json({ error: `Has llegado al máximo de ${MAX_TOPICS} temas. Quita alguno.` }, 403);
-
-  const id = uid();
-  await run(
-    `INSERT INTO topics(id,user_id,writer_id,title,notes,format,scheduled_day,send_hour,mode,status,created_at,updated_at)
-     VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`,
-    [id, user.id, t.writerId, t.title, t.notes, t.format, t.day, t.hour, t.mode, t.day ? "scheduled" : "idea", now(), now()],
-  );
-  return json({ id });
-}
+export const POST = authed(async (req, user) => {
+  if ((await count("topics", { user_id: eq(user.id) })) >= MAX_TOPICS) return fail("Tienes demasiados temas guardados. Borra alguno.", 403);
+  const t = parseTopic(await readBody(req));
+  if (typeof t === "string") return fail(t);
+  if (!(await getWriter(user.id, t.writer_id))) return fail("Ese redactor no existe.");
+  const [row] = await insert<{ id: string }>("topics", { ...t, user_id: user.id, status: t.scheduled_day ? "scheduled" : "idea" });
+  return json({ ok: true, id: row.id });
+});

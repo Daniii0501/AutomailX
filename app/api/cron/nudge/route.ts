@@ -1,44 +1,35 @@
-import { q } from "@/lib/db";
-import { mailEnabled, sendMail, simpleMail } from "@/lib/email";
-import { hit } from "@/lib/rate";
-import { baseUrl, json } from "@/lib/util";
+import { cronGuard } from "@/lib/cron";
+import { eq, inList, select } from "@/lib/db";
+import { mailEnabled, sendBatch, simpleMail, type Mail } from "@/lib/email";
+import { baseUrl, json, open } from "@/lib/http";
 
-/**
- * Recordatorio semanal: el día elegido, el redactor "te espera" por correo.
- * Vercel lo llama a diario (ver vercel.json) con `Authorization: Bearer CRON_SECRET`.
- */
-export async function GET(req: Request) {
-  const secret = process.env.CRON_SECRET;
-  if (secret) {
-    if (req.headers.get("authorization") !== `Bearer ${secret}`) return json({ error: "No autorizado." }, 401);
-  } else if (process.env.NODE_ENV === "production") {
-    return json({ error: "Falta CRON_SECRET." }, 401);
-  }
-  if (!mailEnabled()) return json({ ok: true, skipped: "sin correo configurado" });
+export const maxDuration = 120;
 
-  const day = new Date().getUTCDay();
-  const rows = await q<{ user_id: string; email: string; writer: string; pub: string }>(
-    `SELECT p.user_id AS user_id, u.email AS email, p.name AS pub,
-            (SELECT name FROM writers w WHERE w.user_id = p.user_id ORDER BY created_at LIMIT 1) AS writer
-     FROM publications p JOIN users u ON u.id = p.user_id
-     WHERE p.cadence_day = ?`,
-    [day],
-  );
+/** Recordatorio semanal: el día que eligió cada persona, un correo para que cuente su semana. */
+export const GET = open(async (req) => {
+  const denied = cronGuard(req);
+  if (denied) return denied;
+  if (!mailEnabled()) return json({ ok: true, sent: 0, note: "Sin RESEND_API_KEY" });
 
-  const base = await baseUrl();
-  let sent = 0;
-  for (const r of rows) {
-    if (!r.writer) continue;
-    if (!(await hit(`nudge:${r.user_id}`, 1))) continue;
-    const m = simpleMail({
-      heading: `${r.writer} te espera`,
-      body: `Es el día de tu newsletter «${r.pub}». Cuéntale qué ha pasado esta semana y tendrás el borrador en un minuto.`,
-      buttonText: "Contarle mi semana",
-      buttonUrl: `${base}/panel`,
-      foot: "Puedes cambiar o quitar este recordatorio en Ajustes.",
+  const weekday = new Date(new Date().toLocaleString("en-US", { timeZone: "Europe/Madrid" })).getDay();
+  const pubs = await select<{ user_id: string; name: string }>("publications", { select: "user_id,name", cadence_day: eq(weekday), limit: 1000 });
+  if (!pubs.length) return json({ ok: true, sent: 0 });
+  const users = await select<{ id: string; email: string }>("users", { select: "id,email", id: inList(pubs.map((p) => p.user_id)) });
+  const emailOf = new Map(users.map((u) => [u.id, u.email]));
+  const base = baseUrl();
+
+  const mails: Mail[] = pubs
+    .filter((p) => emailOf.has(p.user_id))
+    .map((p) => {
+      const m = simpleMail({
+        heading: "¿Qué tal la semana?",
+        body: `Es el día de ${p.name}. Cuéntale a tu redactor lo que ha pasado (un par de frases bastan) y él se encarga del resto.`,
+        buttonText: "Contar mi semana",
+        buttonUrl: `${base}/panel`,
+        foot: "Puedes cambiar o quitar este recordatorio en Ajustes.",
+      });
+      return { to: emailOf.get(p.user_id)!, subject: "¿Qué tal la semana? Tu redactor te espera", ...m };
     });
-    const res = await sendMail({ to: r.email, subject: `${r.writer} te espera para la newsletter de hoy`, ...m });
-    if (res.ok) sent++;
-  }
-  return json({ ok: true, sent });
-}
+  const r = await sendBatch(mails);
+  return json({ ok: r.ok, sent: r.sent, error: r.error });
+});

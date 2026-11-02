@@ -1,32 +1,19 @@
 import { notFound } from "next/navigation";
 import WriterForm from "@/components/WriterForm";
 import { requireUser } from "@/lib/auth";
-import { getWriter, getWriters } from "@/lib/data";
+import { getWriter } from "@/lib/data";
 
-export default async function EditWriter({ params }: { params: Promise<{ id: string }> }) {
+type P = Promise<{ id: string }>;
+
+export default async function EditWriterPage({ params }: { params: P }) {
   const user = await requireUser();
   const { id } = await params;
-  const [w, all] = await Promise.all([getWriter(user.id, id), getWriters(user.id)]);
+  const w = await getWriter(user.id, id);
   if (!w) notFound();
   return (
-    <WriterForm
-      mode="edit"
-      id={w.id}
-      canDelete={all.length > 1}
-      initial={{
-        kind: w.kind,
-        animal: w.animal,
-        name: w.name,
-        about: w.about,
-        formality: w.formality,
-        length: w.length,
-        emojis: w.emojis,
-        sample: w.sample,
-        format: w.format,
-        avatar: w.avatar || "✍️",
-        color: w.color || "#6D4AFF",
-        profile: w.custom,
-      }}
-    />
+    <div>
+      <h1 className="mb-6 text-3xl font-bold">Editar a {w.name}</h1>
+      <WriterForm initial={w} />
+    </div>
   );
 }

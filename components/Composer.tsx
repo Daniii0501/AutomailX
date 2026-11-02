@@ -1,142 +1,145 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import WriterAvatar from "@/components/WriterAvatar";
-import { useSpeech } from "@/components/useSpeech";
-import type { AnimalId } from "@/lib/animals";
+import { useEffect, useState } from "react";
 import { api } from "@/lib/client";
-import { FORMAT_IDS, FORMATS, type FormatId } from "@/lib/formats";
-import { lookOf } from "@/lib/look";
+import { FORMATS, FORMAT_IDS, type FormatId } from "@/lib/formats";
+import type { Look } from "@/lib/newsletter";
+import { useSpeech } from "./useSpeech";
+import WriterAvatar from "./WriterAvatar";
 
-export type ComposerWriter = {
-  id: string;
-  name: string;
-  kind: "animal" | "custom";
-  animal: AnimalId;
-  avatar: string;
-  color: string;
-  format: FormatId;
-};
+export type WriterLite = { id: string; name: string; look: Look; format: FormatId; tagline: string };
 
-export default function Composer({ writer }: { writer: ComposerWriter }) {
+const STEPS = ["Leyendo tus notas…", "Buscando el ángulo…", "Escribiendo el borrador…", "Puliendo el asunto…", "Repasando que no se invente nada…", "Últimos retoques…"];
+
+export default function Composer({ writers }: { writers: WriterLite[] }) {
   const router = useRouter();
-  const look = lookOf(writer);
-  const [text, setText] = useState("");
-  const [format, setFormat] = useState<FormatId>(writer.format);
+  const [writerId, setWriterId] = useState(writers[0]?.id ?? "");
+  const [brief, setBrief] = useState("");
+  const [format, setFormat] = useState<FormatId>("auto");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [phrase, setPhrase] = useState(0);
-
-  const onText = useCallback((t: string) => setText(t), []);
-  const speech = useSpeech(onText);
-
-  const phrases = [
-    `${writer.name} está leyendo tus notas…`,
-    `${writer.name} busca el gancho…`,
-    `${writer.name} está escribiendo…`,
-    `${writer.name} pule cada frase…`,
-  ];
+  const [step, setStep] = useState(0);
+  const [error, setError] = useState("");
+  const speech = useSpeech((t) => setBrief((b) => (b ? `${b.trimEnd()} ${t}` : t)));
+  const writer = writers.find((w) => w.id === writerId) ?? writers[0];
 
   useEffect(() => {
     if (!busy) return;
-    const id = setInterval(() => setPhrase((p) => (p + 1) % phrases.length), 1600);
+    setStep(0);
+    const id = setInterval(() => setStep((s) => Math.min(s + 1, STEPS.length - 1)), 9000);
     return () => clearInterval(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [busy]);
 
-  async function submit() {
-    if (speech.listening) speech.stop();
-    setBusy(true);
-    setError(null);
-    const r = await api<{ id?: string }>("/api/newsletters", "POST", { writerId: writer.id, brief: text, format });
-    if (!r.ok || !r.data.id) {
-      setBusy(false);
-      setError(r.data.error ?? "No se pudo crear el borrador.");
+  async function write(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    if (brief.trim().length < 20) {
+      setError("Cuéntale un poco más: una o dos frases sobre lo que ha pasado.");
       return;
     }
-    router.push(`/panel/n/${r.data.id}`);
+    setBusy(true);
+    try {
+      const r = await api<{ id: string }>("/api/newsletters", { body: { writerId: writer.id, brief, format } });
+      router.push(`/panel/n/${r.id}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Algo ha fallado.");
+      setBusy(false);
+    }
   }
 
-  if (busy) {
+  if (busy && writer) {
     return (
-      <div className="card anim-fade-up flex flex-col items-center px-6 py-16 text-center" style={{ background: `linear-gradient(160deg, ${look.soft}, #fff 75%)` }}>
-        <WriterAvatar w={writer} size={120} className="anim-bob" />
-        <p className="mt-6 text-lg font-medium">{phrases[phrase]}</p>
-        <p className="mt-1 text-sm text-muted">Estilo: {FORMATS[format].label}. Puede tardar unos segundos.</p>
-        <div className="mt-6 w-full max-w-xs space-y-2.5">
-          <div className="shimmer h-3 w-full rounded-full" />
-          <div className="shimmer h-3 w-4/5 rounded-full" />
-          <div className="shimmer h-3 w-2/3 rounded-full" />
+      <div className="card flex flex-col items-center px-6 py-14 text-center" aria-live="polite">
+        <div className="anim-bob">
+          <WriterAvatar look={writer.look} size={96} />
         </div>
+        <p className="mt-5 text-lg font-semibold">{writer.name} está escribiendo</p>
+        <p className="mt-1 text-muted">{STEPS[step]}</p>
+        <div className="mt-6 w-full max-w-xs space-y-2" aria-hidden>
+          <div className="shimmer h-3 rounded-full" />
+          <div className="shimmer h-3 w-4/5 rounded-full" />
+          <div className="shimmer h-3 w-3/5 rounded-full" />
+        </div>
+        <p className="hint mt-6">Suele tardar entre 20 y 60 segundos. No cierres esta pantalla.</p>
       </div>
     );
   }
 
   return (
-    <div className="card overflow-hidden" style={{ background: `linear-gradient(160deg, ${look.soft}, #fff 55%)` }}>
-      <div className="flex items-center gap-4 px-6 pt-6 sm:px-8 sm:pt-8">
-        <WriterAvatar w={writer} size={84} className="shrink-0" />
-        <div className="rounded-2xl rounded-bl-md bg-white px-4 py-3 text-[15px] shadow-sm">
-          <b>{writer.name}</b>: «¿Qué cuentas hoy? Dímelo como si fuera a un amigo.»
-        </div>
-      </div>
-
-      <div className="p-6 sm:p-8">
-        <div className="relative">
-          <label htmlFor="brief" className="sr-only">Cuéntale a {writer.name} lo que ha pasado</label>
-          <textarea
-            id="brief"
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            rows={6}
-            placeholder="Esta semana lanzamos… además el viernes hacemos… quiero agradecer a…"
-            className="input resize-none pr-16 text-[17px] leading-relaxed"
-          />
-          {speech.supported && (
-            <button
-              type="button"
-              onClick={() => (speech.listening ? speech.stop() : speech.start())}
-              aria-label={speech.listening ? "Parar de grabar" : "Dictar con la voz"}
-              aria-pressed={speech.listening}
-              className="absolute bottom-3 right-3 grid h-11 w-11 place-items-center rounded-full text-white shadow-md transition active:scale-95"
-              style={{ background: speech.listening ? "#d6405a" : look.color }}
-            >
-              {speech.listening && <span className="anim-ring absolute inset-0 rounded-full bg-danger/40" />}
-              <svg viewBox="0 0 24 24" className="relative h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <rect x="9" y="2.5" width="6" height="11" rx="3" />
-                <path d="M5 11.5a7 7 0 0 0 14 0M12 18.5V22" />
-              </svg>
-            </button>
-          )}
-        </div>
-
-        <div className="mt-5">
-          <p className="mb-2 text-sm font-medium">Estilo de la newsletter</p>
-          <div className="no-scrollbar -mx-1 flex gap-2 overflow-x-auto px-1 pb-1" role="group" aria-label="Estilo de la newsletter">
-            {FORMAT_IDS.map((f) => (
-              <button key={f} type="button" aria-pressed={format === f} onClick={() => setFormat(f)} className="chip shrink-0 whitespace-nowrap">
-                <span aria-hidden>{FORMATS[f].emoji}</span> {FORMATS[f].label}
+    <form onSubmit={write} className="card p-5 sm:p-6">
+      {writers.length > 1 && (
+        <fieldset className="mb-5">
+          <legend className="label">¿Quién escribe hoy?</legend>
+          <div className="flex flex-wrap gap-2">
+            {writers.map((w) => (
+              <button
+                type="button"
+                key={w.id}
+                onClick={() => setWriterId(w.id)}
+                aria-pressed={w.id === writer.id}
+                className="chip inline-flex items-center gap-2 !py-1.5 !pl-1.5"
+              >
+                <WriterAvatar look={w.look} size={28} />
+                {w.name}
               </button>
             ))}
           </div>
-          <p className="mt-1.5 text-xs text-muted">{FORMATS[format].hint}</p>
-        </div>
+        </fieldset>
+      )}
 
-        {(error || speech.error) && (
-          <p role="alert" className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-sm text-danger">
-            {error ?? speech.error}
-          </p>
-        )}
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm text-muted">
-            {speech.listening ? "Te escucho… pulsa el micro cuando acabes." : "Puedes dictarlo con el micrófono o escribirlo."}
-          </p>
-          <button onClick={submit} disabled={text.trim().length < 15} className="btn btn-primary !px-7 !py-3.5">
-            Que {writer.name} la escriba
-          </button>
+      <div className="flex items-start gap-3">
+        <WriterAvatar look={writer.look} size={44} />
+        <div>
+          <p className="font-semibold">Cuéntale a {writer.name} qué ha pasado</p>
+          <p className="text-sm text-muted">Tal cual te salga: tú pones los hechos, {writer.name} pone el oficio.</p>
         </div>
       </div>
-    </div>
+
+      <div className="relative mt-4">
+        <label htmlFor="brief" className="sr-only">Tus notas</label>
+        <textarea
+          id="brief"
+          value={brief}
+          onChange={(e) => setBrief(e.target.value)}
+          rows={6}
+          maxLength={4000}
+          placeholder="Ej.: Esta semana hemos abierto los sábados por la mañana. El viernes hay taller gratis a las 18:00. Quiero dar las gracias a quien vino a la presentación…"
+          className="input pb-12"
+        />
+        {speech.supported && (
+          <button
+            type="button"
+            onClick={speech.toggle}
+            className={`absolute right-3 bottom-3 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold transition ${speech.listening ? "bg-danger text-white" : "bg-[#f4f2ef] text-ink hover:bg-[#ebe8e3]"}`}
+            aria-pressed={speech.listening}
+          >
+            <span aria-hidden className="relative inline-flex h-2.5 w-2.5">
+              {speech.listening && <span className="anim-ring absolute inset-0 rounded-full bg-white" />}
+              <span className={`relative h-2.5 w-2.5 rounded-full ${speech.listening ? "bg-white" : "bg-danger"}`} />
+            </span>
+            {speech.listening ? "Parar" : "Dictar"}
+          </button>
+        )}
+      </div>
+      {speech.error && <p className="hint text-danger">{speech.error}</p>}
+
+      <fieldset className="mt-5">
+        <legend className="label">Estilo</legend>
+        <div className="no-scrollbar -mx-1 flex gap-2 overflow-x-auto px-1 pb-1 sm:flex-wrap">
+          {FORMAT_IDS.map((id) => (
+            <button type="button" key={id} className="chip shrink-0" aria-pressed={format === id} onClick={() => setFormat(id)} title={FORMATS[id].hint}>
+              <span aria-hidden>{FORMATS[id].emoji}</span> {id === "auto" ? (writer.format !== "auto" ? `El de ${writer.name}` : "Que decida") : FORMATS[id].label}
+            </button>
+          ))}
+        </div>
+        <p className="hint">{format === "auto" && writer.format !== "auto" ? `Usará su estilo habitual: ${FORMATS[writer.format].label}.` : FORMATS[format].hint}.</p>
+      </fieldset>
+
+      {error && <p role="alert" className="banner banner-err mt-4">{error}</p>}
+
+      <button type="submit" className="btn btn-primary mt-5 w-full sm:w-auto">
+        Escribir newsletter
+      </button>
+    </form>
   );
 }

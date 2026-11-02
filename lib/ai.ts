@@ -1,16 +1,44 @@
+import "server-only";
+import Anthropic from "@anthropic-ai/sdk";
+import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
+import { z } from "zod";
 import { ANIMALS } from "./animals";
 import { COPY_BIBLE, FORMATS, type FormatId } from "./formats";
 import {
   sanitizeNewsletter,
   simulateNewsletter,
   simulateRevision,
+  textOf,
   type Newsletter,
   type WriterProfile,
 } from "./newsletter";
 
 export const aiEnabled = () => !!process.env.ANTHROPIC_API_KEY;
-/** Segundo pase de "editor jefe". Se puede apagar con AI_POLISH=0 para gastar menos. */
+/** Segundo pase de "editor jefe". AI_POLISH=0 lo apaga (gasta menos, escribe peor). */
 const polishEnabled = () => process.env.AI_POLISH !== "0";
+const MODEL = () => process.env.ANTHROPIC_MODEL || "claude-sonnet-5-5";
+
+let _client: Anthropic | null = null;
+const client = () => (_client ??= new Anthropic({ maxRetries: 1 }));
+
+// ---------------- Forma de la respuesta (validada por la API) ----------------
+
+const SectionSchema = z.object({ title: z.string(), body: z.string() });
+const PieceFields = {
+  subject: z.string(),
+  preheader: z.string(),
+  greeting: z.string(),
+  sections: z.array(SectionSchema),
+  cta: z.string(),
+  signoff: z.string(),
+};
+const DraftSchema = z.object({
+  plan: z.object({ angulo: z.string(), gancho: z.string(), estructura: z.string() }),
+  ...PieceFields,
+});
+const PieceSchema = z.object(PieceFields);
+
+// ---------------- Prompts ----------------
 
 const LANG: Record<string, string> = {
   "es-ES": "español de España",
@@ -68,70 +96,6 @@ function formatBlock(f: FormatId): string {
   return `ESTILO ELEGIDO PARA ESTA PIEZA: ${F.label}\n${F.brief}`;
 }
 
-function extractJson(text: string): unknown {
-  const start = text.indexOf("{");
-  const end = text.lastIndexOf("}");
-  if (start === -1 || end === -1) return null;
-  try {
-    return JSON.parse(text.slice(start, end + 1));
-  } catch {
-    return null;
-  }
-}
-
-async function callClaude(
-  system: string,
-  user: string,
-  opts: { maxTokens: number; temperature: number; timeoutMs: number },
-): Promise<Newsletter> {
-  const res = await fetch(process.env.ANTHROPIC_API_URL ?? "https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-api-key": process.env.ANTHROPIC_API_KEY ?? "",
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: process.env.ANTHROPIC_MODEL ?? "claude-sonnet-5-5",
-      max_tokens: opts.maxTokens,
-      temperature: opts.temperature,
-      system,
-      messages: [{ role: "user", content: user }],
-    }),
-    signal: AbortSignal.timeout(opts.timeoutMs),
-  });
-  if (!res.ok) throw new Error(`Anthropic ${res.status}`);
-  const data = (await res.json()) as { content?: { type: string; text?: string }[] };
-  const text = data.content?.find((c) => c.type === "text")?.text ?? "";
-  const n = sanitizeNewsletter(extractJson(text));
-  if (!n) throw new Error("Respuesta no válida");
-  return n;
-}
-
-// ---------------- Comprobación de cifras inventadas ----------------
-
-const numsOf = (s: string) => (s.match(/\d+(?:[.,]\d+)?/g) ?? []).map((x) => x.replace(",", "."));
-
-function textOf(n: Newsletter): string {
-  return [n.subject, n.preheader, n.greeting, ...n.sections.flatMap((s) => [s.title, s.body]), n.cta, n.signoff].join("\n");
-}
-
-/** Cifras que aparecen en el texto pero no en las notas del autor (salvo numeración 1 a 5). */
-export function suspiciousNumbers(brief: string, n: Newsletter): string[] {
-  const known = new Set(numsOf(brief));
-  const out = new Set<string>();
-  for (const x of numsOf(textOf(n))) {
-    if (known.has(x)) continue;
-    if (/^[1-5]$/.test(x)) continue;
-    out.add(x);
-  }
-  return [...out];
-}
-
-// ---------------- Redactar ----------------
-
-const SHAPE = `{"plan": {"angulo": string, "gancho": string, "estructura": string}, "subject": string, "preheader": string, "greeting": string, "sections": [{"title": string, "body": string}], "cta": string, "signoff": string}`;
-
 const EDITOR = `AHORA ACTÚAS COMO EDITOR JEFE DE COPY. Recibes el borrador de un redactor y las notas originales del autor. Tu trabajo: llevarlo de bueno a excelente SIN cambiar los hechos.
 Revisa y corrige:
 1. Asunto: ¿es específico, con curiosidad o beneficio, y mide entre 25 y 55 caracteres? Mejóralo si no.
@@ -141,58 +105,114 @@ Revisa y corrige:
 5. Ritmo: alterna frases cortas y largas; párrafos de 1 a 3 frases.
 6. Mantén la voz del redactor y el estilo elegido. Una sola llamada a la acción clara.
 Si algo ya está bien, no lo toques. No alargues: si se puede decir con menos, mejor.
-Devuelve el JSON completo con la misma forma que el borrador (sin "plan").`;
+Devuelve la pieza completa con la misma forma que el borrador.`;
 
-export type Written = { newsletter: Newsletter; source: "claude" | "simulated" };
+// ---------------- Llamada a Claude ----------------
+
+type Effort = "low" | "medium" | "high";
+
+async function callClaude<S extends z.ZodType>(
+  schema: S,
+  system: string,
+  user: string,
+  opts: { effort: Effort; timeoutMs: number },
+): Promise<z.infer<S>> {
+  const res = await client().beta.messages.parse(
+    {
+      model: MODEL(),
+      max_tokens: 16000,
+      betas: ["server-side-fallback-2026-07-01"],
+      fallbacks: "default",
+      output_config: { effort: opts.effort, format: betaZodOutputFormat(schema) },
+      system,
+      messages: [{ role: "user", content: user }],
+    },
+    { timeout: opts.timeoutMs },
+  );
+  if (res.stop_reason === "refusal") throw new Error("El modelo no ha querido escribir este texto.");
+  if (res.stop_reason === "max_tokens") throw new Error("La respuesta se ha cortado.");
+  if (!res.parsed_output) throw new Error("Respuesta no válida");
+  return res.parsed_output as z.infer<S>;
+}
+
+const toNewsletter = (x: unknown): Newsletter => {
+  const n = sanitizeNewsletter(x);
+  if (!n) throw new Error("Respuesta incompleta");
+  return n;
+};
+
+// ---------------- Comprobación de cifras inventadas ----------------
+
+const numsOf = (s: string) => (s.match(/\d+(?:[.,]\d+)?/g) ?? []).map((x) => x.replace(",", "."));
+
+/** Cifras que aparecen en el texto pero no en las notas del autor (salvo numeración 1 a 5). */
+export function suspiciousNumbers(brief: string, n: Newsletter): string[] {
+  const known = new Set(numsOf(brief));
+  const out = new Set<string>();
+  for (const x of numsOf(textOf(n))) {
+    if (known.has(x) || /^[1-5]$/.test(x)) continue;
+    out.add(x);
+  }
+  return [...out];
+}
+
+// ---------------- Redactar ----------------
+
+export type Written = { newsletter: Newsletter; source: "claude" | "simulated"; error?: string };
 
 export async function writeNewsletter(
   brief: string,
   w: WriterProfile,
-  format?: FormatId,
+  format: FormatId | undefined,
+  opts: { polish?: boolean; quick?: boolean } = {},
 ): Promise<Written> {
-  if (aiEnabled()) {
-    try {
-      const fmt = format && format !== "auto" ? format : w.format;
-      const system = [COPY_BIBLE, formatBlock(fmt), personaBlock(w)].join("\n\n");
-      const user = `NOTAS DEL AUTOR (única fuente de hechos):\n"""\n${brief.slice(0, 4000)}\n"""\n\nAntes de escribir, decide en "plan" el ángulo que hace especial esta pieza, el gancho de apertura y la estructura. Después escribe la pieza completa.\nDevuelve este JSON: ${SHAPE}`;
+  if (!aiEnabled()) return { newsletter: simulateNewsletter(brief, w), source: "simulated" };
+  try {
+    const fmt = format && format !== "auto" ? format : w.format;
+    const system = [COPY_BIBLE, formatBlock(fmt), personaBlock(w)].join("\n\n");
+    const notes = `NOTAS DEL AUTOR (única fuente de hechos):\n"""\n${brief.slice(0, 4000)}\n"""`;
+    const user = `${notes}\n\nAntes de escribir, decide en "plan" el ángulo que hace especial esta pieza, el gancho de apertura y la estructura. Después escribe la pieza completa.`;
 
-      let n = await callClaude(system, user, { maxTokens: 2200, temperature: 0.9, timeoutMs: 55_000 });
+    const draft = await callClaude(DraftSchema, system, user, { effort: opts.quick ? "low" : "medium", timeoutMs: 70_000 });
+    let n = toNewsletter(draft);
 
-      if (polishEnabled()) {
-        try {
-          const sus = suspiciousNumbers(brief, n);
-          const polishUser = `NOTAS ORIGINALES DEL AUTOR:\n"""\n${brief.slice(0, 4000)}\n"""\n\nBORRADOR A MEJORAR (JSON):\n${JSON.stringify(n)}${
-            sus.length ? `\n\nATENCIÓN: estas cifras NO aparecen en las notas y hay que quitarlas o sustituirlas por algo cierto: ${sus.join(", ")}.` : ""
-          }`;
-          n = await callClaude(`${system}\n\n${EDITOR}`, polishUser, { maxTokens: 2200, temperature: 0.5, timeoutMs: 40_000 });
-        } catch {
-          // si el editor falla, nos quedamos con el borrador del redactor
-        }
+    if ((opts.polish ?? true) && polishEnabled()) {
+      try {
+        const sus = suspiciousNumbers(brief, n);
+        const polishUser = `${notes}\n\nBORRADOR A MEJORAR:\n${JSON.stringify(n)}${
+          sus.length ? `\n\nATENCIÓN: estas cifras NO aparecen en las notas y hay que quitarlas o sustituirlas por algo cierto: ${sus.join(", ")}.` : ""
+        }`;
+        n = toNewsletter(await callClaude(PieceSchema, `${system}\n\n${EDITOR}`, polishUser, { effort: "low", timeoutMs: 50_000 }));
+      } catch (e) {
+        console.error("[ai] el editor jefe falló; se usa el borrador", e);
       }
-      return { newsletter: n, source: "claude" };
-    } catch {
-      // caemos al modo simulado para no dejar al usuario sin resultado
     }
+    return { newsletter: n, source: "claude" };
+  } catch (e) {
+    console.error("[ai] fallo al redactar", e);
+    return { newsletter: simulateNewsletter(brief, w), source: "simulated", error: describe(e) };
   }
-  return { newsletter: simulateNewsletter(brief, w), source: "simulated" };
 }
 
-export async function reviseNewsletter(
-  current: Newsletter,
-  instruction: string,
-  w: WriterProfile,
-  brief = "",
-): Promise<Written> {
-  if (aiEnabled()) {
-    try {
-      const system = [COPY_BIBLE, formatBlock(w.format), personaBlock(w)].join("\n\n");
-      const user = `${brief ? `NOTAS ORIGINALES DEL AUTOR (única fuente de hechos):\n"""\n${brief.slice(0, 4000)}\n"""\n\n` : ""}Esta es la newsletter actual (JSON):\n${JSON.stringify(current)}\n\nEl autor te pide este cambio: «${instruction.slice(0, 500)}»\n\nAplícalo con oficio y devuelve la newsletter COMPLETA modificada, con la misma forma JSON (sin "plan"). Mantén lo que no te pida cambiar. No inventes datos nuevos.`;
-      const n = await callClaude(system, user, { maxTokens: 2200, temperature: 0.8, timeoutMs: 55_000 });
-      if (current.ctaUrl && !n.ctaUrl) n.ctaUrl = current.ctaUrl;
-      return { newsletter: n, source: "claude" };
-    } catch {
-      // modo simulado
-    }
+export async function reviseNewsletter(current: Newsletter, instruction: string, w: WriterProfile, brief: string, format: FormatId): Promise<Written> {
+  if (!aiEnabled()) return { newsletter: simulateRevision(current, instruction, w), source: "simulated" };
+  try {
+    const system = [COPY_BIBLE, formatBlock(format), personaBlock(w)].join("\n\n");
+    const user = `${brief ? `NOTAS ORIGINALES DEL AUTOR (única fuente de hechos):\n"""\n${brief.slice(0, 4000)}\n"""\n\n` : ""}Esta es la newsletter actual:\n${JSON.stringify(current)}\n\nEl autor te pide este cambio: «${instruction.slice(0, 500)}»\n\nAplícalo con oficio y devuelve la newsletter COMPLETA modificada. Mantén lo que no te pida cambiar. No inventes datos nuevos.`;
+    const n = toNewsletter(await callClaude(PieceSchema, system, user, { effort: "low", timeoutMs: 70_000 }));
+    if (current.ctaUrl) n.ctaUrl = current.ctaUrl;
+    return { newsletter: n, source: "claude" };
+  } catch (e) {
+    console.error("[ai] fallo al revisar", e);
+    return { newsletter: current, source: "simulated", error: describe(e) };
   }
-  return { newsletter: simulateRevision(current, instruction, w), source: "simulated" };
+}
+
+function describe(e: unknown): string {
+  if (e instanceof Anthropic.AuthenticationError) return "La clave de Anthropic no es válida.";
+  if (e instanceof Anthropic.PermissionDeniedError) return "La clave de Anthropic no tiene permiso para este modelo.";
+  if (e instanceof Anthropic.RateLimitError) return "La IA está saturada ahora mismo. Prueba en un minuto.";
+  if (e instanceof Anthropic.APIConnectionTimeoutError) return "La IA ha tardado demasiado.";
+  if (e instanceof Anthropic.APIError) return `La IA ha dado un error (${e.status ?? "?"}).`;
+  return e instanceof Error ? e.message : "Error inesperado de la IA.";
 }

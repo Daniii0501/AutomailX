@@ -1,33 +1,42 @@
-import { body } from "@/lib/api";
-import { ANIMALS, isAnimal } from "@/lib/animals";
 import { writeNewsletter } from "@/lib/ai";
-import { baseProfile } from "@/lib/newsletter";
-import { SHOWCASE_STYLE, showcaseFor } from "@/lib/showcase";
-import { hit } from "@/lib/rate";
-import { clean, ipHash, json, sameOrigin } from "@/lib/util";
+import { ANIMALS, isAnimal } from "@/lib/animals";
+import { dbConfigured } from "@/lib/db";
+import { fail, json, open, readBody, sameOrigin } from "@/lib/http";
+import { simulateNewsletter, type WriterProfile, EMPTY_CUSTOM } from "@/lib/newsletter";
+import { clientIp, hit } from "@/lib/rate";
+import { showcaseFor } from "@/lib/showcase";
+import { clean } from "@/lib/util";
 
-export const maxDuration = 120;
+export const maxDuration = 90;
 
-/** Demo pública de la landing: sin cuenta, con límites para proteger la clave de IA. */
-export async function POST(req: Request) {
-  if (!sameOrigin(req)) return json({ error: "Petición no permitida." }, 403);
-
-  const b = await body<{ note?: string; animal?: string }>(req);
-  const note = clean(b.note, 1500);
-  if (note.length < 15) return json({ error: "Cuéntame un poco más (mínimo una frase)." }, 400);
+/** Demo de la portada (sin registro). Con la nota de ejemplo devuelve el texto escrito a mano. */
+export const POST = open(async (req) => {
+  if (!sameOrigin(req)) return fail("Petición no permitida.", 403);
+  const b = await readBody(req);
   const animal = isAnimal(b.animal) ? b.animal : "zorro";
+  const note = clean(b.note, 1500);
+  if (note.length < 20) return fail("Cuéntale algo más (una o dos frases).");
 
-  // El ejemplo de la portada no gasta IA: son textos escritos a mano, con la voz de cada animal.
-  const curated = showcaseFor(note, animal);
-  if (curated) return json({ newsletter: curated, source: "ejemplo", style: SHOWCASE_STYLE[animal] });
+  const showcase = showcaseFor(note, animal);
+  if (showcase) return json({ newsletter: showcase, source: "showcase" });
 
-  if (!(await hit(`demo:${ipHash(req)}`, 8)) || !(await hit("demo:global", 400))) {
-    return json({ error: "Has probado mucho hoy. Crea tu cuenta gratis para seguir." }, 429);
-  }
-
-  const { newsletter, source } = await writeNewsletter(
-    note,
-    baseProfile({ animal, name: ANIMALS[animal].defaultName }),
-  );
-  return json({ newsletter, source });
-}
+  const writer: WriterProfile = {
+    kind: "animal",
+    animal,
+    name: ANIMALS[animal].defaultName,
+    avatar: "",
+    color: "",
+    about: "",
+    formality: 30,
+    length: "corto",
+    emojis: 1,
+    sample: "",
+    format: "auto",
+    custom: { ...EMPTY_CUSTOM },
+  };
+  // Límite por IP para que nadie gaste la IA desde la portada.
+  const allowed = dbConfigured() ? await hit(`demo-ip:${clientIp(req)}`, 6).catch(() => false) : false;
+  if (!allowed) return json({ newsletter: simulateNewsletter(note, writer), source: "simulated", limited: dbConfigured() });
+  const w = await writeNewsletter(note, writer, "auto", { polish: false, quick: true });
+  return json({ newsletter: w.newsletter, source: w.source });
+});

@@ -1,20 +1,23 @@
-import Animal from "@/components/Animal";
-import Brand from "@/components/Brand";
-import EnterButton from "@/components/EnterButton";
+import Centered from "@/components/Centered";
 
-export const metadata = { title: "Entrar · AutoMailX" };
+export const metadata = { title: "Entrar · AutoMailX", robots: { index: false } };
 
-export default async function Enter({ searchParams }: { searchParams: Promise<{ token?: string }> }) {
-  const { token } = await searchParams;
+type SP = Promise<{ t?: string }>;
+
+/** El enlace del correo trae aquí. Se entra pulsando el botón (POST), no al abrir la página. */
+export default async function EnterPage({ searchParams }: { searchParams: SP }) {
+  const { t = "" } = await searchParams;
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-6 py-12 text-center">
-      <div className="mb-10"><Brand /></div>
-      <div className="card p-8">
-        <Animal id="zorro" size={96} className="mx-auto" />
-        <h1 className="mt-5 text-3xl font-bold">¡Ya casi estás dentro!</h1>
-        <p className="mb-6 mt-2 text-muted">Pulsa el botón para entrar en tu cuenta.</p>
-        <EnterButton token={typeof token === "string" ? token : ""} />
+    <Centered>
+      <div className="text-center">
+        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[#f1edff] text-2xl" aria-hidden>👋</div>
+        <h1 className="text-2xl font-bold">¡Ya casi estás!</h1>
+        <p className="mt-2 text-muted">Pulsa el botón para entrar en tu cuenta.</p>
+        <form method="post" action="/api/auth/verify" className="mt-6">
+          <input type="hidden" name="t" value={t} />
+          <button type="submit" className="btn btn-primary w-full" autoFocus>Entrar en AutoMailX</button>
+        </form>
       </div>
-    </main>
+    </Centered>
   );
 }

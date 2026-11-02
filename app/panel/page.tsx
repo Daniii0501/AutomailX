@@ -1,89 +1,111 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import Composer from "@/components/Composer";
+import Animal from "@/components/Animal";
+import Composer, { type WriterLite } from "@/components/Composer";
 import WriterAvatar from "@/components/WriterAvatar";
-import { requireUser } from "@/lib/auth";
-import { countConfirmed, getWriters, listNewsletters } from "@/lib/data";
+import { aiEnabled } from "@/lib/ai";
+import { ANIMALS, ANIMAL_IDS } from "@/lib/animals";
+import { demoLogin, requireUser } from "@/lib/auth";
+import { listWriters } from "@/lib/data";
+import { count, eq } from "@/lib/db";
+import { mailEnabled } from "@/lib/email";
+import { lookOf } from "@/lib/newsletter";
 import { FREE } from "@/lib/plans";
 
-const fmt = (ms: number) => new Date(ms).toLocaleDateString("es-ES", { day: "numeric", month: "short" });
-
-export default async function PanelHome({ searchParams }: { searchParams: Promise<{ w?: string }> }) {
+export default async function PanelHome() {
   const user = await requireUser();
-  const writers = await getWriters(user.id);
-  if (writers.length === 0) redirect("/panel/redactores/nuevo");
+  const [writers, confirmed, drafts] = await Promise.all([
+    listWriters(user.id),
+    count("subscribers", { user_id: eq(user.id), status: eq("confirmed") }),
+    count("newsletters", { user_id: eq(user.id), status: eq("draft") }),
+  ]);
 
-  const { w } = await searchParams;
-  const writer = writers.find((x) => x.id === w) ?? writers[0];
-  const [recent, confirmed] = await Promise.all([listNewsletters(user.id, 6), countConfirmed(user.id)]);
-  const byWriter = new Map(writers.map((x) => [x.id, x]));
+  if (writers.length === 0) {
+    return (
+      <div className="anim-fade-up">
+        <h1 className="text-3xl font-bold">Bienvenido a AutoMailX 👋</h1>
+        <p className="mt-2 text-lg text-muted">Primero, contrata a tu redactor. Elige uno: luego podrás ajustarlo a tu gusto.</p>
+        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
+          {ANIMAL_IDS.map((id) => {
+            const a = ANIMALS[id];
+            return (
+              <Link key={id} href={`/panel/redactores/nuevo?animal=${id}`} className="card flex flex-col items-center p-4 text-center transition hover:-translate-y-0.5">
+                <Animal id={id} size={72} />
+                <span className="mt-2 font-semibold">{a.defaultName}</span>
+                <span className="text-xs text-muted">{a.tagline}</span>
+              </Link>
+            );
+          })}
+        </div>
+        <Link href="/panel/redactores/nuevo?kind=custom" className="card mt-3 flex items-center gap-3 p-4 transition hover:-translate-y-0.5">
+          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-[#f1edff] text-2xl" aria-hidden>✍️</span>
+          <span>
+            <span className="block font-semibold">Prefiero uno a medida</span>
+            <span className="text-sm text-muted">Con tu propia voz, tus palabras y tus reglas.</span>
+          </span>
+        </Link>
+      </div>
+    );
+  }
+
+  const lite: WriterLite[] = writers.map((w) => ({ id: w.id!, name: w.name, look: lookOf(w), format: w.format, tagline: w.kind === "custom" ? "A medida" : ANIMALS[w.animal].tagline }));
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold">¿Qué ha pasado esta semana?</h1>
+        <p className="mt-1 text-muted">Cuéntalo, revisa y envía. Tres gestos.</p>
+      </div>
+
+      {!aiEnabled() && (
+        <p className="banner banner-warn">
+          <strong>Modo simulado.</strong> Falta conectar la IA (variable <code>ANTHROPIC_API_KEY</code> en Vercel). Mientras tanto, los borradores solo reordenan tus notas.
+        </p>
+      )}
+      {!mailEnabled() && (
+        <p className="banner banner-info">
+          Los envíos están en <strong>modo prueba</strong>: no sale ningún correo real hasta conectar Resend (<code>RESEND_API_KEY</code>).
+        </p>
+      )}
+      {demoLogin() && (
+        <p className="banner banner-warn">
+          La <strong>entrada directa de pruebas</strong> está activada (<code>ALLOW_DEMO_LOGIN</code>). Quítala en Vercel antes de enseñar la web a nadie.
+        </p>
+      )}
+
+      <Composer writers={lite} />
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Link href="/panel/audiencia" className="card p-4 transition hover:-translate-y-0.5">
+          <p className="text-sm text-muted">Suscriptores confirmados</p>
+          <p className="text-2xl font-bold">{confirmed}</p>
+          {confirmed === 0 && <p className="hint">Añade tu primer lector en Audiencia →</p>}
+        </Link>
+        <Link href="/panel/historial" className="card p-4 transition hover:-translate-y-0.5">
+          <p className="text-sm text-muted">Borradores por enviar</p>
+          <p className="text-2xl font-bold">{drafts}</p>
+          {drafts > 0 && <p className="hint">Revísalos en Historial →</p>}
+        </Link>
+      </div>
+
       <section>
-        <div className="mb-4 flex flex-wrap items-center gap-2">
-          {writers.map((x) => (
-            <Link
-              key={x.id}
-              href={`/panel?w=${x.id}`}
-              className={`flex items-center gap-2 rounded-full border py-1.5 pl-1.5 pr-4 text-sm font-medium transition ${x.id === writer.id ? "border-ink bg-white shadow-sm" : "border-line bg-white/60 text-muted hover:text-ink"}`}
-            >
-              <WriterAvatar w={x} size={30} />
-              {x.name}
+        <h2 className="text-lg font-bold">Tu equipo</h2>
+        <div className="mt-3 space-y-2">
+          {lite.map((w) => (
+            <Link key={w.id} href={`/panel/redactores/${w.id}`} className="card flex items-center gap-3 p-3 transition hover:-translate-y-0.5">
+              <WriterAvatar look={w.look} size={44} />
+              <span className="flex-1">
+                <span className="block font-semibold">{w.name}</span>
+                <span className="text-sm text-muted">{w.tagline}</span>
+              </span>
+              <span className="text-sm font-semibold text-muted">Editar</span>
             </Link>
           ))}
           {writers.length < FREE.writers && (
-            <Link href="/panel/redactores/nuevo" className="rounded-full border border-dashed border-line px-4 py-2 text-sm text-muted hover:border-ink hover:text-ink">
-              + Nuevo redactor
+            <Link href="/panel/redactores/nuevo" className="flex items-center justify-center rounded-3xl border border-dashed border-line p-4 text-sm font-semibold text-muted hover:bg-white">
+              + Contratar otro redactor
             </Link>
           )}
-          <Link href={`/panel/redactores/${writer.id}`} className="ml-auto text-sm text-muted hover:text-ink">
-            Ajustar a {writer.name}
-          </Link>
         </div>
-        <Composer
-          key={writer.id}
-          writer={{ id: writer.id, name: writer.name, kind: writer.kind, animal: writer.animal, avatar: writer.avatar, color: writer.color, format: writer.format }}
-        />
-      </section>
-
-      {confirmed === 0 && (
-        <Link href="/panel/audiencia" className="card flex items-center justify-between gap-4 p-5 transition hover:shadow-lg">
-          <div>
-            <p className="font-semibold">Aún no tienes suscriptores</p>
-            <p className="text-sm text-muted">Añade a tu gente o comparte tu página de suscripción para poder enviar.</p>
-          </div>
-          <span className="btn btn-soft shrink-0">Añadir</span>
-        </Link>
-      )}
-
-      <section>
-        <h2 className="mb-4 text-xl font-semibold">Tus newsletters</h2>
-        {recent.length === 0 ? (
-          <p className="card p-8 text-center text-muted">Todavía no hay ninguna. Cuéntale algo a {writer.name} y aparecerá aquí.</p>
-        ) : (
-          <ul className="space-y-3">
-            {recent.map((n) => {
-              const wr = byWriter.get(n.writer_id);
-              return (
-                <li key={n.id}>
-                  <Link href={`/panel/n/${n.id}`} className="card flex items-center gap-4 p-4 transition hover:shadow-lg">
-                    {wr ? <WriterAvatar w={wr} size={44} className="shrink-0" /> : <div className="h-11 w-11 shrink-0 rounded-full bg-line" />}
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-medium">{n.content.subject}</p>
-                      <p className="text-sm text-muted">
-                        {n.status === "sent" ? `Enviada el ${fmt(n.sent_at ?? n.updated_at)} a ${n.recipients}` : `Borrador · ${fmt(n.updated_at)}`}
-                      </p>
-                    </div>
-                    <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium ${n.status === "sent" ? "bg-ok/10 text-ok" : "bg-amber-100 text-amber-800"}`}>
-                      {n.status === "sent" ? "Enviada" : n.status === "sending" ? "Enviando" : "Borrador"}
-                    </span>
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        )}
       </section>
     </div>
   );

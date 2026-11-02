@@ -1,97 +1,83 @@
 "use client";
 
-import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { api } from "@/lib/client";
-
-type Pub = { name: string; sender_name: string; slug: string; reply_to: string; cadence_day: number | null };
 
 const DAYS = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
 
-export default function SettingsForm({ initial, email, baseUrl }: { initial: Pub; email: string; baseUrl: string }) {
+type Init = { name: string; senderName: string; replyTo: string; cadenceDay: number | null };
+
+export default function SettingsForm({ initial, email }: { initial: Init; email: string }) {
   const router = useRouter();
-  const [v, setV] = useState<Pub>(initial);
+  const [s, setS] = useState(initial);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  const [del, setDel] = useState(false);
-  const [confirmEmail, setConfirmEmail] = useState("");
-
-  const set = <K extends keyof Pub>(k: K, val: Pub[K]) => setV((p) => ({ ...p, [k]: val }));
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     setMsg(null);
-    const r = await api("/api/settings", "PATCH", v);
-    setBusy(false);
-    setMsg(r.ok ? { ok: true, text: "Guardado ✓" } : { ok: false, text: r.data.error ?? "No se pudo guardar." });
-    if (r.ok) router.refresh();
+    try {
+      await api("/api/settings", { method: "PATCH", body: { ...s, cadenceDay: s.cadenceDay ?? "" } });
+      setMsg({ ok: true, text: "Guardado." });
+      router.refresh();
+    } catch (err) {
+      setMsg({ ok: false, text: (err as Error).message });
+    } finally {
+      setBusy(false);
+    }
   }
 
-  async function removeAccount() {
-    setBusy(true);
-    const r = await api("/api/account", "DELETE", { confirm: confirmEmail });
-    setBusy(false);
-    if (!r.ok) return setMsg({ ok: false, text: r.data.error ?? "No se pudo borrar." });
-    router.push("/");
-    router.refresh();
+  async function deleteAccount() {
+    const typed = prompt(`Esto borra tu cuenta, tus redactores, tu lista y todas tus newsletters. No se puede deshacer.\n\nEscribe BORRAR para confirmar.`);
+    if (typed?.trim().toUpperCase() !== "BORRAR") return;
+    try {
+      await api("/api/account", { method: "DELETE" });
+      window.location.href = "/";
+    } catch (err) {
+      setMsg({ ok: false, text: (err as Error).message });
+    }
   }
 
   return (
-    <div className="space-y-8">
-      <form onSubmit={save} className="card space-y-5 p-6">
-        <h2 className="text-lg font-semibold">Tu newsletter</h2>
+    <div className="space-y-6">
+      <form onSubmit={save} className="card space-y-4 p-5">
         <div>
-          <label htmlFor="s-name" className="mb-2 block text-sm font-medium">Nombre de la newsletter</label>
-          <input id="s-name" value={v.name} onChange={(e) => set("name", e.target.value)} maxLength={60} className="input" />
+          <label htmlFor="pname" className="label">Nombre de tu newsletter</label>
+          <input id="pname" className="input" required minLength={2} maxLength={80} value={s.name} onChange={(e) => setS({ ...s, name: e.target.value })} />
         </div>
         <div>
-          <label htmlFor="s-sender" className="mb-2 block text-sm font-medium">Quién la firma <span className="font-normal text-muted">(aparece como remitente)</span></label>
-          <input id="s-sender" value={v.sender_name} onChange={(e) => set("sender_name", e.target.value)} maxLength={60} className="input" />
+          <label htmlFor="sname" className="label">Nombre del remitente</label>
+          <input id="sname" className="input" required minLength={2} maxLength={60} value={s.senderName} onChange={(e) => setS({ ...s, senderName: e.target.value })} />
+          <p className="hint">Así aparecerás en la bandeja de entrada de tus lectores.</p>
         </div>
         <div>
-          <label htmlFor="s-reply" className="mb-2 block text-sm font-medium">Correo de respuesta <span className="font-normal text-muted">(donde te escriben)</span></label>
-          <input id="s-reply" type="email" value={v.reply_to} onChange={(e) => set("reply_to", e.target.value)} placeholder={email} className="input" />
+          <label htmlFor="reply" className="label">Las respuestas llegan a</label>
+          <input id="reply" type="email" className="input" maxLength={254} value={s.replyTo} onChange={(e) => setS({ ...s, replyTo: e.target.value })} placeholder={email} />
         </div>
         <div>
-          <label htmlFor="s-slug" className="mb-2 block text-sm font-medium">Enlace de suscripción</label>
-          <div className="flex items-center rounded-2xl border border-line bg-white pl-4 focus-within:border-brand focus-within:ring-4 focus-within:ring-brand/10">
-            <span className="shrink-0 text-sm text-muted">{baseUrl.replace(/^https?:\/\//, "")}/s/</span>
-            <input id="s-slug" value={v.slug} onChange={(e) => set("slug", e.target.value.toLowerCase())} maxLength={40} className="w-full bg-transparent py-3 pr-4 outline-none" />
-          </div>
-        </div>
-        <div>
-          <label htmlFor="s-day" className="mb-2 block text-sm font-medium">Recordatorio semanal</label>
-          <select id="s-day" value={v.cadence_day ?? ""} onChange={(e) => set("cadence_day", e.target.value === "" ? null : Number(e.target.value))} className="input">
+          <label htmlFor="day" className="label">Recordatorio semanal</label>
+          <select id="day" className="input" value={s.cadenceDay ?? ""} onChange={(e) => setS({ ...s, cadenceDay: e.target.value === "" ? null : Number(e.target.value) })}>
             <option value="">Sin recordatorio</option>
-            {DAYS.map((d, i) => (<option key={d} value={i}>Cada {d.toLowerCase()}</option>))}
+            {DAYS.map((d, i) => (
+              <option key={d} value={i}>Cada {d.toLowerCase()} por la mañana</option>
+            ))}
           </select>
-          <p className="mt-1.5 text-xs text-muted">Ese día tu redactor te escribe para que le cuentes la semana.</p>
+          <p className="hint">Te escribimos ese día para que le cuentes tu semana al redactor.</p>
         </div>
-        {msg && <p role="status" className={`rounded-xl px-3 py-2 text-sm ${msg.ok ? "bg-ok/10 text-ok" : "bg-red-50 text-danger"}`}>{msg.text}</p>}
-        <button type="submit" disabled={busy} className="btn btn-primary">{busy ? "Guardando…" : "Guardar"}</button>
+        {msg && <p role="status" className={`banner ${msg.ok ? "banner-ok" : "banner-err"}`}>{msg.text}</p>}
+        <button className="btn btn-primary" disabled={busy}>{busy ? "Guardando…" : "Guardar"}</button>
       </form>
 
-      <div className="card p-6">
-        <h2 className="text-lg font-semibold">Tu plan</h2>
-        <p className="mt-1 text-sm text-muted">Estás en el plan <b className="text-ink">Gratis</b>. El plan Pro llegará pronto.</p>
-      </div>
-
-      <div className="card p-6">
-        <h2 className="text-lg font-semibold">Tu cuenta</h2>
-        <p className="mt-1 text-sm text-muted">{email}</p>
-        {!del ? (
-          <button onClick={() => setDel(true)} className="mt-4 text-sm text-danger hover:underline">Borrar mi cuenta y todos mis datos</button>
-        ) : (
-          <div className="mt-4 space-y-3 rounded-2xl border border-red-200 bg-red-50/50 p-4">
-            <p className="text-sm">Se borrarán tu cuenta, tus redactores, newsletters y suscriptores. No se puede deshacer. Escribe tu correo para confirmar:</p>
-            <input value={confirmEmail} onChange={(e) => setConfirmEmail(e.target.value)} aria-label="Confirma tu correo" placeholder={email} className="input" />
-            <div className="flex gap-2">
-              <button onClick={() => { setDel(false); setConfirmEmail(""); }} className="btn btn-soft">Cancelar</button>
-              <button onClick={removeAccount} disabled={busy || confirmEmail.trim().toLowerCase() !== email} className="btn btn-danger">Borrar todo</button>
-            </div>
-          </div>
-        )}
+      <div className="card space-y-3 p-5">
+        <h2 className="font-bold">Tu cuenta</h2>
+        <p className="text-sm text-muted">Has entrado como <strong className="text-ink">{email}</strong>.</p>
+        <div className="flex flex-wrap gap-3">
+          <a href="/api/account" className="btn btn-soft">Descargar mis datos</a>
+          <form method="post" action="/api/auth/logout"><button className="btn btn-soft">Cerrar sesión</button></form>
+          <button type="button" className="btn btn-danger" onClick={deleteAccount}>Borrar mi cuenta</button>
+        </div>
       </div>
     </div>
   );

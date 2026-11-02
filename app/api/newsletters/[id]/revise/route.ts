@@ -1,47 +1,33 @@
-import { body, guard } from "@/lib/api";
 import { reviseNewsletter } from "@/lib/ai";
-import { getNewsletter, getWriter } from "@/lib/data";
-import { run } from "@/lib/db";
-import { isFormat } from "@/lib/formats";
+import { getNewsletter, getWriter, parseContent } from "@/lib/data";
+import { eq, update } from "@/lib/db";
+import { authed, fail, json, readBody } from "@/lib/http";
+import { lookOf, writerFromRow } from "@/lib/newsletter";
 import { FREE } from "@/lib/plans";
 import { hit } from "@/lib/rate";
-import { clean, json, now } from "@/lib/util";
+import { clean } from "@/lib/util";
 
 export const maxDuration = 120;
 
-type Ctx = { params: Promise<{ id: string }> };
+type P = { id: string };
 
-export async function POST(req: Request, ctx: Ctx) {
-  const user = await guard(req);
-  if (user instanceof Response) return user;
-  const { id } = await ctx.params;
-
+/** "Hazlo más corto", "más gracioso"... El redactor reescribe la pieza. */
+export const POST = authed<P>(async (req, user, { id }) => {
   const n = await getNewsletter(user.id, id);
-  if (!n) return json({ error: "No encontrada." }, 404);
-  if (n.status !== "draft") return json({ error: "Esta newsletter ya está enviada." }, 409);
+  if (!n) return fail("No encontrada.", 404);
+  if (n.status !== "draft") return fail("Esta newsletter ya se envió.", 409);
+  const b = await readBody(req);
+  const instruction = clean(b.instruction, 500);
+  if (instruction.length < 3) return fail("Dile qué quieres cambiar.");
+  const current = parseContent(b.content) ?? n.content;
+  if (!(await hit(`revise:${user.id}`, FREE.revisionsPerDay))) return fail("Has llegado al límite de cambios de hoy.", 429);
 
-  const instruction = clean((await body<{ instruction?: string }>(req)).instruction, 500);
-  if (instruction.length < 3) return json({ error: "Dime qué quieres cambiar." }, 400);
+  const writer =
+    (await getWriter(user.id, n.writer_id)) ??
+    writerFromRow({ kind: n.look?.animal ? "animal" : "custom", animal: n.look?.animal ?? "zorro", name: n.look?.name ?? "Redactor", avatar: n.look?.emoji, color: n.look?.color });
+  const r = await reviseNewsletter(current, instruction, writer, n.brief, n.format);
+  if (r.error) return fail(`No se pudo aplicar el cambio: ${r.error}`, 502);
 
-  const writer = await getWriter(user.id, n.writer_id);
-  if (!writer) return json({ error: "El redactor ya no existe." }, 404);
-
-  if (!(await hit(`ai:${user.id}`, FREE.aiPerDay))) {
-    return json({ error: "Has llegado al límite de cambios de hoy. Vuelve mañana." }, 429);
-  }
-
-  const { newsletter, source } = await reviseNewsletter(
-    n.content,
-    instruction,
-    { ...writer, format: isFormat(n.format) ? n.format : writer.format },
-    n.brief,
-  );
-  await run("UPDATE newsletters SET content = ?, source = ?, updated_at = ? WHERE id = ? AND user_id = ? AND status = 'draft'", [
-    JSON.stringify(newsletter),
-    source,
-    now(),
-    id,
-    user.id,
-  ]);
-  return json({ content: newsletter, source });
-}
+  await update("newsletters", { id: eq(id), user_id: eq(user.id), status: eq("draft") }, { content: r.newsletter, look: lookOf(writer), updated_at: new Date().toISOString() });
+  return json({ ok: true, content: r.newsletter, simulated: r.source === "simulated" });
+});

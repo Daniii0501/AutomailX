@@ -1,40 +1,37 @@
-import Link from "next/link";
-import Animal from "@/components/Animal";
-import ConfirmButton from "@/components/ConfirmButton";
-import { notFound } from "next/navigation";
-import { dbConfigured, q1 } from "@/lib/db";
+import Centered from "@/components/Centered";
 
-export const metadata = { title: "Confirmar suscripción" };
+export const metadata = { title: "Confirmar suscripción", robots: { index: false } };
 
-export default async function Confirm({ params }: { params: Promise<{ token: string }> }) {
+type P = Promise<{ token: string }>;
+type SP = Promise<{ ok?: string; error?: string }>;
+
+export default async function ConfirmPage({ params, searchParams }: { params: P; searchParams: SP }) {
   const { token } = await params;
-  if (!dbConfigured) notFound();
-  const sub = await q1<{ status: string; user_id: string }>("SELECT status, user_id FROM subscribers WHERE token = ?", [token]);
-  const pub = sub ? await q1<{ name: string }>("SELECT name FROM publications WHERE user_id = ?", [sub.user_id]) : null;
-  const valid = !!sub && sub.status !== "unsubscribed";
-
+  const { ok, error } = await searchParams;
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-6 py-12 text-center">
-      <div className="card p-8">
-        <Animal id={valid ? "oso" : "gato"} size={90} className="mx-auto" />
-        {valid ? (
+    <Centered>
+      <div className="text-center">
+        {ok ? (
           <>
-            <h1 className="mt-5 text-2xl font-bold">Un último paso</h1>
-            <p className="mb-6 mt-2 text-muted">Confirma que quieres recibir {pub?.name ?? "esta newsletter"}.</p>
-            {sub?.status === "confirmed" ? (
-              <p className="rounded-xl bg-ok/10 px-4 py-3 font-medium text-ok">Ya estabas confirmado. ¡Gracias!</p>
-            ) : (
-              <ConfirmButton token={token} publication={pub?.name ?? "la lista"} />
-            )}
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-[#e9f7f0] text-2xl" aria-hidden>🎉</div>
+            <h1 className="text-2xl font-bold">¡Suscripción confirmada!</h1>
+            <p className="mt-2 text-muted">Ya estás en la lista. La próxima newsletter te llegará al correo.</p>
           </>
         ) : (
           <>
-            <h1 className="mt-5 text-2xl font-bold">Enlace no válido</h1>
-            <p className="mt-2 text-muted">Este enlace no existe o ya no está activo. Si te habías dado de baja, vuelve a suscribirte desde el formulario.</p>
+            <h1 className="text-2xl font-bold">Confirma tu suscripción</h1>
+            {error ? (
+              <p className="banner banner-warn mt-4">Este enlace ya se usó o no es válido. Si ya confirmaste, no tienes que hacer nada más.</p>
+            ) : (
+              <p className="mt-2 text-muted">Pulsa el botón para empezar a recibir la newsletter.</p>
+            )}
+            <form method="post" action="/api/public/confirm" className="mt-6">
+              <input type="hidden" name="token" value={token} />
+              <button type="submit" className="btn btn-primary w-full">Sí, quiero recibirla</button>
+            </form>
           </>
         )}
-        <Link href="/" className="mt-6 inline-block text-sm text-muted underline">AutoMailX</Link>
       </div>
-    </main>
+    </Centered>
   );
 }

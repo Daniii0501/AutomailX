@@ -1,4 +1,4 @@
-import { aiEnabled } from "@/lib/ai";
+import { aiLabel } from "@/lib/ai";
 import { count, dbConfigured, eq, inList, remove, rpc, select, update } from "@/lib/db";
 import { mailEnabled, usingTestSender } from "@/lib/email";
 import { json } from "@/lib/http";
@@ -45,7 +45,7 @@ export async function GET(req: Request) {
     db,
     dbMs,
     ...(deep ? { deep } : {}),
-    ai: aiEnabled() ? "ok" : "falta ANTHROPIC_API_KEY (modo simulado)",
+    ai: aiLabel() ? `ok: ${aiLabel()}` : "falta ANTHROPIC_API_KEY u OPENAI_API_KEY (modo simulado)",
     mail: mailEnabled() ? (usingTestSender() ? "ok (remitente de pruebas: solo a tu propio correo)" : "ok") : "falta RESEND_API_KEY",
     cron: process.env.CRON_SECRET ? "ok" : "falta CRON_SECRET",
     demoLogin: process.env.ALLOW_DEMO_LOGIN === "1" ? "ACTIVADA (quítala antes de abrir la web al público)" : "desactivada",

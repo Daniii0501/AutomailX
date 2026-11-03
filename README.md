@@ -8,7 +8,8 @@ Contrata a un redactor de IA con personalidad, cuéntale tu semana y envía a tu
 - **Supabase** como base de datos, usada **por HTTP** (su API REST) con la clave secreta del servidor.
   No hay conexiones Postgres que mantener abiertas: cada consulta es una petición corta con timeout.
 - **El esquema vive en `supabase/migrations/`** y se aplica una vez. La web nunca crea ni cambia tablas.
-- **Claude** (SDK oficial `@anthropic-ai/sdk`) para redactar: un pase de redactor y otro de editor jefe,
+- **IA para redactar**: Claude (SDK oficial `@anthropic-ai/sdk`) u OpenAI (SDK oficial `openai`), según
+  qué clave haya en Vercel. Si están las dos, manda Claude. Un pase de redactor y otro de editor jefe,
   con salida JSON validada.
 - **Resend** para el correo. Doble confirmación de suscriptores y baja en un clic.
 - Entrada sin contraseñas: enlace mágico (15 min, un solo uso, se canjea con un botón para que los

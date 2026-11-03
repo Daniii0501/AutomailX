@@ -6,7 +6,7 @@ import { lookOf, type WriterProfile } from "./newsletter";
 import { FREE } from "./plans";
 import { hit } from "./rate";
 
-export type DraftResult = { ok: true; id: string; source: "claude" | "simulated" } | { ok: false; error: string; status: number };
+export type DraftResult = { ok: true; id: string; source: "ai" | "simulated" } | { ok: false; error: string; status: number };
 
 /** Escribe un borrador con el redactor y lo guarda. Lo usan el panel, "Escribir ahora" y el cron. */
 export async function createDraft(userId: string, writer: WriterProfile, brief: string, format: FormatId): Promise<DraftResult> {
@@ -21,7 +21,7 @@ export async function createDraft(userId: string, writer: WriterProfile, brief: 
     warnings.push(
       aiEnabled()
         ? `La IA ha fallado (${w.error ?? "error desconocido"}) y este borrador es un apaño automático. Prueba a escribirlo de nuevo.`
-        : "Modo simulado: falta la clave de la IA (ANTHROPIC_API_KEY), así que este borrador solo reordena tus notas.",
+        : "Modo simulado: falta la clave de la IA (OPENAI_API_KEY o ANTHROPIC_API_KEY), así que este borrador solo reordena tus notas.",
     );
   } else {
     const sus = suspiciousNumbers(brief, w.newsletter);

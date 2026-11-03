@@ -32,7 +32,7 @@ export type NewsletterRow = {
   format: FormatId;
   content: Newsletter;
   warnings: string[];
-  source: "claude" | "simulated";
+  source: "ai" | "simulated";
   status: "draft" | "sending" | "sent";
   recipients: number;
   delivery: string | null;

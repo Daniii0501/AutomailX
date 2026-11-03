@@ -58,7 +58,7 @@ export default async function PanelHome() {
 
       {!aiEnabled() && (
         <p className="banner banner-warn">
-          <strong>Modo simulado.</strong> Falta conectar la IA (variable <code>ANTHROPIC_API_KEY</code> en Vercel). Mientras tanto, los borradores solo reordenan tus notas.
+          <strong>Modo simulado.</strong> Falta conectar la IA (variable <code>OPENAI_API_KEY</code> o <code>ANTHROPIC_API_KEY</code> en Vercel). Mientras tanto, los borradores solo reordenan tus notas.
         </p>
       )}
       {!mailEnabled() && (

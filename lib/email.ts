@@ -25,7 +25,8 @@ export type Mail = {
   headers?: Record<string, string>;
 };
 
-export type SendResult = { ok: boolean; demo: boolean; sent: number; error?: string };
+/** `ids`: el id de Resend de cada correo enviado, en el mismo orden (null si no llegó). */
+export type SendResult = { ok: boolean; demo: boolean; sent: number; error?: string; ids?: (string | null)[] };
 
 const payload = (m: Mail) => ({
   from: m.fromName ? fromWith(m.fromName) : FROM(),
@@ -46,15 +47,15 @@ function friendly(status: number, body: string): string {
   return `Resend ${status}: ${body.slice(0, 160)}`;
 }
 
-async function post(path: string, body: unknown): Promise<{ ok: boolean; error?: string }> {
+async function post(path: string, body: unknown): Promise<{ ok: boolean; error?: string; data?: unknown }> {
   try {
-    const res = await fetch(`https://api.resend.com${path}`, {
+    const res = await fetch(`${process.env.RESEND_API_URL || "https://api.resend.com"}${path}`, {
       method: "POST",
       headers: { authorization: `Bearer ${process.env.RESEND_API_KEY}`, "content-type": "application/json" },
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(30_000),
     });
-    if (res.ok) return { ok: true };
+    if (res.ok) return { ok: true, data: await res.json().catch(() => null) };
     return { ok: false, error: friendly(res.status, await res.text()) };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Error de red" };
@@ -71,13 +72,16 @@ export async function sendMail(m: Mail): Promise<SendResult> {
 export async function sendBatch(mails: Mail[]): Promise<SendResult> {
   if (!mailEnabled()) return { ok: true, demo: true, sent: 0 };
   let sent = 0;
+  const ids: (string | null)[] = [];
   for (let i = 0; i < mails.length; i += 100) {
     const chunk = mails.slice(i, i + 100);
     const r = await post("/emails/batch", chunk.map(payload));
-    if (!r.ok) return { ok: false, demo: false, sent, error: r.error };
+    if (!r.ok) return { ok: false, demo: false, sent, error: r.error, ids };
+    const list = (r.data as { data?: { id?: string }[] } | null)?.data ?? [];
+    chunk.forEach((_, k) => ids.push(typeof list[k]?.id === "string" ? list[k].id! : null));
     sent += chunk.length;
   }
-  return { ok: true, demo: false, sent };
+  return { ok: true, demo: false, sent, ids };
 }
 
 /** Correos sencillos de la app (enlace de acceso, confirmación, avisos). */

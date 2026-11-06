@@ -1,6 +1,6 @@
 import "server-only";
 import { getPublication } from "./data";
-import { count, eq, insert, neq } from "./db";
+import { count, eq, inList, insert } from "./db";
 import { sendBatch, simpleMail, type Mail } from "./email";
 import { FREE } from "./plans";
 import { isEmail, newToken, normEmail } from "./util";
@@ -9,7 +9,7 @@ export type Subscriber = {
   id: string;
   email: string;
   name: string;
-  status: "pending" | "confirmed" | "unsubscribed";
+  status: "pending" | "confirmed" | "unsubscribed" | "bounced";
   token: string;
   source: string;
   created_at: string;
@@ -38,7 +38,7 @@ export async function addSubscribers(
   emails: string[],
   opts: { consent: boolean; source: string; name?: string; base: string },
 ): Promise<{ added: number; skipped: number; confirmationsSent: number; error?: string }> {
-  const active = await count("subscribers", { user_id: eq(userId), status: neq("unsubscribed") });
+  const active = await count("subscribers", { user_id: eq(userId), status: inList(["pending", "confirmed"]) });
   const room = FREE.subscribers - active;
   if (room <= 0) return { added: 0, skipped: emails.length, confirmationsSent: 0, error: `Has llegado al máximo de ${FREE.subscribers} suscriptores del plan gratis.` };
   const list = emails.slice(0, room);

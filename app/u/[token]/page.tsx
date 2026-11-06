@@ -3,11 +3,11 @@ import Centered from "@/components/Centered";
 export const metadata = { title: "Darse de baja", robots: { index: false } };
 
 type P = Promise<{ token: string }>;
-type SP = Promise<{ ok?: string }>;
+type SP = Promise<{ ok?: string; n?: string }>;
 
 export default async function UnsubscribePage({ params, searchParams }: { params: P; searchParams: SP }) {
   const { token } = await params;
-  const { ok } = await searchParams;
+  const { ok, n } = await searchParams;
   const preview = token === "vista-previa";
   return (
     <Centered>
@@ -29,6 +29,7 @@ export default async function UnsubscribePage({ params, searchParams }: { params
             <p className="mt-2 text-muted">Dejarás de recibir esta newsletter.</p>
             <form method="post" action="/api/public/unsubscribe" className="mt-6">
               <input type="hidden" name="token" value={token} />
+              {n && <input type="hidden" name="n" value={n} />}
               <button type="submit" className="btn btn-primary w-full">Sí, darme de baja</button>
             </form>
           </>

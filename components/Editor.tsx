@@ -24,6 +24,8 @@ type Props = {
   recipients: number;
   delivery: string | null;
   formatLabel: string;
+  /** Resultados de la campaña (solo si ya se envió). */
+  results?: React.ReactNode;
 };
 
 const QUICK = ["Más corto", "Más gracioso", "Más cercano", "Más formal", "Mejora el asunto", "Más emoción"];
@@ -148,6 +150,7 @@ export default function Editor(p: Props) {
           {p.status === "sending" ? "Enviándose ahora mismo…" : `Enviada el ${fecha(p.sentAt, true)} a ${plural(p.recipients, "persona", "personas")}${p.delivery === "demo" ? " (modo prueba, sin correo real)" : ""}.`}
         </p>
       )}
+      {p.results}
       {!readOnly && p.warnings.map((w) => <p key={w} className="banner banner-warn">⚠️ {w}</p>)}
       {msg && <p role="status" className={`banner ${banner(msg.kind)}`}>{msg.text}</p>}
 

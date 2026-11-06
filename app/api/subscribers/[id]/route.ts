@@ -24,7 +24,7 @@ export const PATCH = authed<P>(async (req, user, { id }) => {
     return json({ ok: true, demo: r.demo });
   }
   if (b.action === "unsubscribe") {
-    await update("subscribers", { id: eq(id), user_id: eq(user.id) }, { status: "unsubscribed" });
+    await update("subscribers", { id: eq(id), user_id: eq(user.id) }, { status: "unsubscribed", unsubscribed_at: new Date().toISOString() });
     return json({ ok: true });
   }
   return fail("Acción no válida.");

@@ -47,6 +47,7 @@ export async function GET(req: Request) {
     ...(deep ? { deep } : {}),
     ai: aiLabel() ? `ok: ${aiLabel()}` : "falta ANTHROPIC_API_KEY u OPENAI_API_KEY (modo simulado)",
     mail: mailEnabled() ? (usingTestSender() ? "ok (remitente de pruebas: solo a tu propio correo)" : "ok") : "falta RESEND_API_KEY",
+    stats: process.env.RESEND_WEBHOOK_SECRET ? "ok" : "falta RESEND_WEBHOOK_SECRET (sin aperturas ni clics)",
     cron: process.env.CRON_SECRET ? "ok" : "falta CRON_SECRET",
     demoLogin: process.env.ALLOW_DEMO_LOGIN === "1" ? "ACTIVADA (quítala antes de abrir la web al público)" : "desactivada",
     region: process.env.VERCEL_REGION ?? "local",

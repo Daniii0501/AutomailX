@@ -5,12 +5,13 @@ import { useState } from "react";
 import { api } from "@/lib/client";
 import { fecha } from "@/lib/format-utils";
 
-type Sub = { id: string; email: string; name: string; status: "pending" | "confirmed" | "unsubscribed"; source: string; created_at: string };
+type Sub = { id: string; email: string; name: string; status: "pending" | "confirmed" | "unsubscribed" | "bounced"; source: string; created_at: string };
 
 const STATUS: Record<Sub["status"], { t: string; c: string }> = {
   confirmed: { t: "Confirmado", c: "bg-[#e9f7f0] text-[#145c3f]" },
   pending: { t: "Pendiente", c: "bg-[#fff6e8] text-[#6b4a12]" },
   unsubscribed: { t: "De baja", c: "bg-[#f4f2ef] text-muted" },
+  bounced: { t: "Rebotado", c: "bg-[#fdecef] text-[#8a2236]" },
 };
 
 export default function AudienceManager({ subs, publicUrl, limit, mailOn }: { subs: Sub[]; publicUrl: string; limit: number; mailOn: boolean }) {
@@ -22,7 +23,7 @@ export default function AudienceManager({ subs, publicUrl, limit, mailOn }: { su
   const [filter, setFilter] = useState<"all" | Sub["status"]>("all");
   const [copied, setCopied] = useState(false);
 
-  const active = subs.filter((s) => s.status !== "unsubscribed").length;
+  const active = subs.filter((s) => s.status === "pending" || s.status === "confirmed").length;
   const shown = subs.filter((s) => filter === "all" || s.status === filter);
 
   async function add(e: React.FormEvent) {
@@ -99,7 +100,7 @@ export default function AudienceManager({ subs, publicUrl, limit, mailOn }: { su
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-lg font-bold">Tu lista ({subs.length})</h2>
           <div className="flex flex-wrap gap-1.5">
-            {(["all", "confirmed", "pending", "unsubscribed"] as const).map((f) => (
+            {(["all", "confirmed", "pending", "unsubscribed", "bounced"] as const).map((f) => (
               <button key={f} className="chip !px-3 !py-1 text-xs" aria-pressed={filter === f} onClick={() => setFilter(f)}>
                 {f === "all" ? "Todos" : STATUS[f].t}
               </button>

@@ -16,6 +16,14 @@ Contrata a un redactor de IA con personalidad, cuéntale tu semana y envía a tu
   antivirus del correo no lo gasten). Los formularios de entrada, suscripción y baja funcionan aunque
   falle el JavaScript.
 
+## Métricas
+
+Al enviar, se guarda el id de Resend de cada correo (`deliveries`). Resend avisa de cada entrega,
+apertura, clic, rebote y queja en `/api/webhooks/resend` (firma Svix comprobada con
+`RESEND_WEBHOOK_SECRET`) y la función SQL `amx_track` lo apunta. Un rebote permanente marca al
+suscriptor como `bounced`; una queja de spam lo da de baja. El enlace de baja lleva la campaña (`?n=`).
+La página es `/panel/estadisticas`.
+
 ## Carpetas
 
 ```

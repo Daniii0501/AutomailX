@@ -1,6 +1,6 @@
 import "server-only";
 import { getNewsletter, getPublication } from "./data";
-import { eq, select, update } from "./db";
+import { eq, insert, select, update } from "./db";
 import { renderNewsletter, sendBatch, sendMail, type Mail } from "./email";
 import { DEFAULT_LOOK } from "./newsletter";
 import { FREE } from "./plans";
@@ -51,7 +51,7 @@ export async function deliverNewsletter(user: Who, newsletterId: string, base: s
   const { n, pub, common } = c;
   if (n.status !== "draft") return { ok: false, status: 409, error: "Esta newsletter ya está enviada o enviándose." };
 
-  const subs = await select<{ email: string; token: string }>("subscribers", { select: "email,token", user_id: eq(user.id), status: eq("confirmed") });
+  const subs = await select<{ id: string; email: string; token: string }>("subscribers", { select: "id,email,token", user_id: eq(user.id), status: eq("confirmed") });
   if (subs.length === 0) return { ok: false, status: 400, error: "Aún no tienes suscriptores confirmados. Añade alguno en Audiencia." };
   if (!(await hit(`send:${user.id}`, FREE.sendsPerDay))) return { ok: false, status: 429, error: `Has llegado al límite de ${FREE.sendsPerDay} envíos de hoy.` };
 
@@ -60,7 +60,7 @@ export async function deliverNewsletter(user: Who, newsletterId: string, base: s
   if (claimed.length !== 1) return { ok: false, status: 409, error: "Ya se está enviando." };
 
   const mails: Mail[] = subs.map((s) => {
-    const unsub = `${base}/u/${s.token}`;
+    const unsub = `${base}/u/${s.token}?n=${newsletterId}`;
     const { html, text } = renderNewsletter(n.content, { ...common, unsubscribeUrl: unsub });
     return {
       to: s.email,
@@ -70,7 +70,7 @@ export async function deliverNewsletter(user: Who, newsletterId: string, base: s
       fromName: pub.sender_name,
       replyTo: pub.reply_to ?? undefined,
       headers: {
-        "List-Unsubscribe": `<${base}/api/public/unsubscribe?token=${s.token}>`,
+        "List-Unsubscribe": `<${base}/api/public/unsubscribe?token=${s.token}&n=${newsletterId}>`,
         "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
       },
     };
@@ -81,6 +81,13 @@ export async function deliverNewsletter(user: Who, newsletterId: string, base: s
   if (!r.ok && r.sent === 0) {
     await update("newsletters", { id: eq(newsletterId), user_id: eq(user.id) }, { status: "draft", updated_at: now });
     return { ok: false, status: 502, error: r.error ?? "No se pudo enviar." };
+  }
+  // Para las estadísticas: un registro por correo, con el id que nos da Resend.
+  const rows = (r.ids ?? [])
+    .map((id, i) => (id ? { id, user_id: user.id, newsletter_id: newsletterId, subscriber_id: subs[i].id, email: subs[i].email, sent_at: now } : null))
+    .filter((x) => x !== null);
+  for (let i = 0; i < rows.length; i += 500) {
+    await insert("deliveries", rows.slice(i, i + 500), { onConflict: "id", ignoreDuplicates: true }).catch((e) => console.error("[send] deliveries", e));
   }
   await update(
     "newsletters",

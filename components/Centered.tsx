@@ -1,4 +1,5 @@
 import Brand from "./Brand";
+import { LegalFooter } from "./Legal";
 
 /** Página sencilla centrada (login, confirmaciones, bajas). */
 export default function Centered({ children, footer }: { children: React.ReactNode; footer?: React.ReactNode }) {
@@ -9,6 +10,7 @@ export default function Centered({ children, footer }: { children: React.ReactNo
       </div>
       <div className="card anim-fade-up p-6 sm:p-8">{children}</div>
       {footer && <div className="mt-6 text-center text-sm text-muted">{footer}</div>}
+      <LegalFooter className="mt-auto pt-10" />
     </main>
   );
 }

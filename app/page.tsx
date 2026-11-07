@@ -2,6 +2,7 @@ import Link from "next/link";
 import Animal from "@/components/Animal";
 import Brand from "@/components/Brand";
 import Demo from "@/components/Demo";
+import { LegalFooter } from "@/components/Legal";
 import PricingCards from "@/components/PricingCards";
 import { ANIMALS, ANIMAL_IDS } from "@/lib/animals";
 import { FORMATS, FORMAT_IDS } from "@/lib/formats";
@@ -145,12 +146,13 @@ export default function Home() {
       <footer className="border-t border-line">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-4 py-6 text-sm text-muted sm:flex-row sm:px-6">
           <Brand size={24} />
-          <nav className="flex gap-4">
-            <Link href="/privacidad" className="hover:text-ink">Privacidad</Link>
-            <Link href="/terminos" className="hover:text-ink">Términos</Link>
-            <Link href="/premium" className="hover:text-ink">Premium</Link>
-            <Link href="/login" className="hover:text-ink">Entrar</Link>
-          </nav>
+          <div className="flex flex-col items-center gap-2 sm:items-end">
+            <nav className="flex gap-4">
+              <Link href="/premium" className="hover:text-ink">Premium</Link>
+              <Link href="/login" className="hover:text-ink">Entrar</Link>
+            </nav>
+            <LegalFooter />
+          </div>
         </div>
       </footer>
     </div>

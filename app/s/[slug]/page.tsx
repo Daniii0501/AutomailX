@@ -22,7 +22,7 @@ export async function generateMetadata({ params }: { params: P }) {
 export default async function SubscribePage({ params, searchParams }: { params: P; searchParams: SP }) {
   const { slug } = await params;
   const { ok, error } = await searchParams;
-  const pub = await one<{ name: string; sender_name: string }>("publications", { select: "name,sender_name", slug: eq(slug) });
+  const pub = await one<{ name: string; sender_name: string; reply_to: string | null }>("publications", { select: "name,sender_name,reply_to", slug: eq(slug) });
   if (!pub) notFound();
 
   return (
@@ -54,6 +54,12 @@ export default async function SubscribePage({ params, searchParams }: { params: 
             </div>
             <button type="submit" className="btn btn-primary w-full">Suscribirme</button>
           </form>
+          <p className="hint mt-4">
+            <strong>Protección de datos.</strong> Responsable: {pub.sender_name}{pub.reply_to ? ` (${pub.reply_to})` : ""}. Finalidad: enviarte esta newsletter.
+            Base legal: tu consentimiento, que confirmas por correo. Los datos los guarda y envía AutoMailX por encargo suyo. Puedes darte de baja en cualquier
+            correo y ejercer tus derechos escribiendo a quien te envía la newsletter. Más información en la{" "}
+            <a href="/privacidad#suscriptores" className="underline">política de privacidad</a>.
+          </p>
         </>
       )}
     </Centered>

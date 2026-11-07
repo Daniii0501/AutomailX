@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Brand from "@/components/Brand";
+import { LegalFooter } from "@/components/Legal";
 import { PremiumFaq, PremiumFeatures } from "@/components/PremiumInfo";
 import PricingCards from "@/components/PricingCards";
 import { priceLabel } from "@/lib/plans";
@@ -39,6 +40,7 @@ export default function PremiumPage() {
           <PremiumFaq />
         </section>
       </main>
+      <footer className="border-t border-line px-4 py-6"><LegalFooter /></footer>
     </div>
   );
 }

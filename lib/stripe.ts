@@ -1,7 +1,8 @@
 import "server-only";
 import Stripe from "stripe";
 import { eq, isNull, one, update } from "./db";
-import { PRICE_CENTS } from "./plans";
+import { DESISTIMIENTO_DIAS } from "./legal";
+import { PRICE_CENTS, priceLabel } from "./plans";
 
 /**
  * Cobro de Premium con Stripe.
@@ -78,6 +79,11 @@ export async function checkoutUrl(user: { id: string; email: string }, base: str
     subscription_data: { metadata: { user_id: user.id } },
     allow_promotion_codes: true,
     locale: "es",
+    custom_text: {
+      submit: {
+        message: `Suscripción mensual de ${priceLabel()} (IVA incluido) que se renueva sola cada mes. Puedes cancelarla cuando quieras desde tu panel. Si eres consumidor, tienes ${DESISTIMIENTO_DIAS} días para desistir y te devolvemos el importe. Al pagar aceptas los Términos: ${base}/terminos`,
+      },
+    },
     success_url: `${base}/panel/premium?pagado=1`,
     cancel_url: `${base}/panel/premium`,
   });

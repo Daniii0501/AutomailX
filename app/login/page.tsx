@@ -36,6 +36,11 @@ export default async function LoginPage({ searchParams }: { searchParams: SP }) 
             <button type="submit" className="btn btn-primary w-full" disabled={!db}>Continuar</button>
           </form>
           <p className="hint mt-5">Si es tu primera vez, se crea tu cuenta al entrar. Es gratis.</p>
+          <p className="hint mt-2">
+            Al continuar aceptas los <Link href="/terminos" className="underline">Términos</Link> (incluido el{" "}
+            <Link href="/encargo-tratamiento" className="underline">encargo del tratamiento</Link>) y la{" "}
+            <Link href="/privacidad" className="underline">Política de privacidad</Link>.
+          </p>
         </>
       )}
     </Centered>

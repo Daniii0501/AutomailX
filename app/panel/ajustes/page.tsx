@@ -1,5 +1,6 @@
 import Link from "next/link";
 import DomainSettings from "@/components/DomainSettings";
+import { LegalFooter } from "@/components/Legal";
 import SettingsForm from "@/components/SettingsForm";
 import { requireUser } from "@/lib/auth";
 import { getAccount, getPublication } from "@/lib/data";
@@ -28,6 +29,7 @@ export default async function SettingsPage() {
         platformAddress={platformAddress()}
         senderName={pub.sender_name}
       />
+      <LegalFooter className="!justify-start" />
       {account.is_admin && (
         <Link href="/panel/admin" className="card flex items-center justify-between p-5 hover:bg-[#faf9f7]">
           <span>

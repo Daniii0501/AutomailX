@@ -33,6 +33,13 @@ clics), se le muestran los registros DNS y, cuando Resend lo verifica, sus enví
 `<dirección>@<su dominio>`. Si deja de ser Premium, vuelve al remitente compartido (`MAIL_FROM`).
 Requiere que `RESEND_API_KEY` tenga permiso «Full access».
 
+## Premium
+
+Límites, precio y ventajas en `lib/plans.ts` (gratis: 8 newsletters por semana; Premium: sin límite
+práctico, dominio propio). Páginas: `/premium` (pública) y `/panel/premium`. Mientras
+`CHECKOUT_ENABLED` sea `false`, «Quiero Premium» guarda una solicitud (`premium_requests`) y avisa
+por correo a los administradores, que activan el plan en `/panel/admin`.
+
 ## Carpetas
 
 ```

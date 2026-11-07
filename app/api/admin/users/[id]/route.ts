@@ -1,5 +1,5 @@
 import { getAccount } from "@/lib/data";
-import { eq, update } from "@/lib/db";
+import { eq, isNull, update } from "@/lib/db";
 import { authed, fail, json, readBody } from "@/lib/http";
 import { isUuid } from "@/lib/util";
 
@@ -13,5 +13,6 @@ export const PATCH = authed<P>(async (req, user, { id }) => {
   if (b.plan !== "free" && b.plan !== "pro") return fail("Plan no válido.");
   const rows = await update("users", { id: eq(id) }, { plan: b.plan });
   if (!rows.length) return fail("No encontrado.", 404);
+  if (b.plan === "pro") await update("premium_requests", { user_id: eq(id), handled_at: isNull }, { handled_at: new Date().toISOString() });
   return json({ ok: true });
 });

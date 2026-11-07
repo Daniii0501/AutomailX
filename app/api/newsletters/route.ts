@@ -14,6 +14,6 @@ export const POST = authed(async (req, user) => {
   const writer = await getWriter(user.id, typeof b.writerId === "string" ? b.writerId : "");
   if (!writer) return fail("Elige un redactor.");
   const r = await createDraft(user.id, writer, brief, isFormat(b.format) ? b.format : "auto");
-  if (!r.ok) return fail(r.error, r.status);
+  if (!r.ok) return json({ error: r.error, upsell: r.upsell === true }, r.status);
   return json({ ok: true, id: r.id, source: r.source });
 });

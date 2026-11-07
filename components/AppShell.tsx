@@ -21,7 +21,7 @@ function Icon({ d }: { d: string }) {
   );
 }
 
-export default function AppShell({ email, children }: { email: string; children: React.ReactNode }) {
+export default function AppShell({ email, plan, children }: { email: string; plan: "free" | "pro"; children: React.ReactNode }) {
   const path = usePathname();
   const active = (href: string) => (href === "/panel" ? path === "/panel" || path.startsWith("/panel/n/") || path.startsWith("/panel/redactores") : path.startsWith(href));
 
@@ -45,6 +45,20 @@ export default function AppShell({ email, children }: { email: string; children:
             </Link>
           ))}
         </nav>
+        <Link
+          href="/panel/premium"
+          aria-current={path.startsWith("/panel/premium") ? "page" : undefined}
+          className={`mt-6 block rounded-2xl p-3 text-sm transition ${plan === "pro" ? "text-muted hover:bg-[#f4f2ef]" : "bg-[#f1edff] text-[#3a2b7a] hover:bg-[#e9e2ff]"}`}
+        >
+          {plan === "pro" ? (
+            <span className="font-semibold">✨ Tienes Premium</span>
+          ) : (
+            <>
+              <span className="block font-semibold">✨ Pásate a Premium</span>
+              <span className="mt-0.5 block text-xs">Tu dominio y newsletters sin límite.</span>
+            </>
+          )}
+        </Link>
         <div className="mt-auto px-2">
           <p className="truncate text-xs text-muted" title={email}>{email}</p>
           <form method="post" action="/api/auth/logout">
@@ -56,6 +70,9 @@ export default function AppShell({ email, children }: { email: string; children:
       {/* Cabecera (móvil) */}
       <header className="sticky top-0 z-20 flex items-center justify-between border-b border-line bg-[#fbfaf8]/85 px-4 py-3 backdrop-blur md:hidden">
         <Brand href="/panel" size={26} />
+        <Link href="/panel/premium" className={`rounded-full px-3 py-1.5 text-xs font-semibold ${plan === "pro" ? "text-muted" : "bg-[#f1edff] text-brand"}`}>
+          {plan === "pro" ? "✨ Premium" : "✨ Hazte Premium"}
+        </Link>
       </header>
 
       <main className="mx-auto w-full max-w-3xl flex-1 px-4 pt-6 pb-28 md:px-8 md:pt-10 md:pb-16">{children}</main>

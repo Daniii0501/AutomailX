@@ -78,7 +78,7 @@ export default function DomainSettings({ plan, domain, platformAddress, senderNa
           Con Premium, tus correos salen desde <strong>tu propio dominio</strong> (por ejemplo <em>hola@tunegocio.com</em>): más confianza, mejor entrega y tu marca en cada envío.
         </p>
         {domain && <p className="banner banner-warn text-sm">Tienes guardado <strong>{domain.name}</strong>, pero solo se usa con Premium.</p>}
-        <p className="hint">Pronto podrás activarlo aquí mismo.</p>
+        <a href="/panel/premium" className="btn btn-primary">Ver Premium</a>
       </div>
     );
   }

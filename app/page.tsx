@@ -2,9 +2,9 @@ import Link from "next/link";
 import Animal from "@/components/Animal";
 import Brand from "@/components/Brand";
 import Demo from "@/components/Demo";
+import PricingCards from "@/components/PricingCards";
 import { ANIMALS, ANIMAL_IDS } from "@/lib/animals";
 import { FORMATS, FORMAT_IDS } from "@/lib/formats";
-import { FREE, PRO_PRICE_HINT } from "@/lib/plans";
 
 const STEPS = [
   { n: "1", t: "Cuéntalo", d: "Dicta o escribe lo que ha pasado, tal cual te salga. Dos frases bastan." },
@@ -27,6 +27,7 @@ export default function Home() {
       <header className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
         <Brand />
         <nav className="flex items-center gap-2">
+          <Link href="/premium" className="hidden px-3 text-sm font-semibold text-muted hover:text-ink sm:inline">Premium</Link>
           <Link href="/login" className="btn btn-soft !px-4 !py-2 text-sm">Entrar</Link>
         </nav>
       </header>
@@ -124,33 +125,10 @@ export default function Home() {
         </section>
 
         {/* Planes */}
-        <section className="mx-auto max-w-4xl px-4 pb-20 sm:px-6">
-          <h2 className="mb-8 text-center text-3xl font-bold sm:text-4xl">Empieza gratis</h2>
-          <div className="grid gap-3 md:grid-cols-2">
-            <div className="card p-6">
-              <p className="text-lg font-bold">Gratis</p>
-              <p className="mt-1 text-4xl font-bold">0 €</p>
-              <ul className="mt-4 space-y-2 text-sm">
-                <li>✓ {FREE.writers} redactores</li>
-                <li>✓ Hasta {FREE.subscribers} suscriptores</li>
-                <li>✓ {FREE.aiPerDay} borradores al día</li>
-                <li>✓ {FREE.sendsPerDay} envíos al día</li>
-                <li>✓ Temas programados</li>
-              </ul>
-              <Link href="/login" className="btn btn-primary mt-6 w-full">Empezar</Link>
-            </div>
-            <div className="card relative overflow-hidden p-6">
-              <span className="pill absolute top-5 right-5 bg-[#f1edff] text-brand">{PRO_PRICE_HINT}</span>
-              <p className="text-lg font-bold">Premium</p>
-              <p className="mt-1 text-4xl font-bold text-muted">—</p>
-              <ul className="mt-4 space-y-2 text-sm text-muted">
-                <li>✓ Más redactores a medida</li>
-                <li>✓ Más suscriptores</li>
-                <li>✓ Tu dominio como remitente</li>
-                <li>✓ Estadísticas de aperturas</li>
-              </ul>
-            </div>
-          </div>
+        <section id="precios" className="mx-auto max-w-4xl scroll-mt-6 px-4 pb-20 sm:px-6">
+          <h2 className="text-center text-3xl font-bold sm:text-4xl">Empieza gratis. Crece con Premium.</h2>
+          <p className="mt-2 mb-8 text-center text-muted">Sin tarjeta para empezar. <Link href="/premium" className="font-semibold text-brand underline-offset-2 hover:underline">Todo sobre Premium →</Link></p>
+          <PricingCards context="public" />
         </section>
 
         {/* CTA final */}
@@ -170,6 +148,7 @@ export default function Home() {
           <nav className="flex gap-4">
             <Link href="/privacidad" className="hover:text-ink">Privacidad</Link>
             <Link href="/terminos" className="hover:text-ink">Términos</Link>
+            <Link href="/premium" className="hover:text-ink">Premium</Link>
             <Link href="/login" className="hover:text-ink">Entrar</Link>
           </nav>
         </div>

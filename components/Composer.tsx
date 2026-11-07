@@ -2,7 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { api } from "@/lib/client";
+import Link from "next/link";
+import { ApiError, api } from "@/lib/client";
 import { FORMATS, FORMAT_IDS, type FormatId } from "@/lib/formats";
 import type { Look } from "@/lib/newsletter";
 import { useSpeech } from "./useSpeech";
@@ -12,7 +13,9 @@ export type WriterLite = { id: string; name: string; look: Look; format: FormatI
 
 const STEPS = ["Leyendo tus notas…", "Buscando el ángulo…", "Escribiendo el borrador…", "Puliendo el asunto…", "Repasando que no se invente nada…", "Últimos retoques…"];
 
-export default function Composer({ writers }: { writers: WriterLite[] }) {
+export type WriteUsage = { plan: "free" | "pro"; used: number; limit: number };
+
+export default function Composer({ writers, usage }: { writers: WriterLite[]; usage: WriteUsage }) {
   const router = useRouter();
   const [writerId, setWriterId] = useState(writers[0]?.id ?? "");
   const [brief, setBrief] = useState("");
@@ -20,6 +23,7 @@ export default function Composer({ writers }: { writers: WriterLite[] }) {
   const [busy, setBusy] = useState(false);
   const [step, setStep] = useState(0);
   const [error, setError] = useState("");
+  const [upsell, setUpsell] = useState(usage.plan === "free" && usage.used >= usage.limit);
   const speech = useSpeech((t) => setBrief((b) => (b ? `${b.trimEnd()} ${t}` : t)));
   const writer = writers.find((w) => w.id === writerId) ?? writers[0];
 
@@ -43,6 +47,7 @@ export default function Composer({ writers }: { writers: WriterLite[] }) {
       router.push(`/panel/n/${r.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Algo ha fallado.");
+      if (err instanceof ApiError && err.data.upsell === true) setUpsell(true);
       setBusy(false);
     }
   }
@@ -135,11 +140,27 @@ export default function Composer({ writers }: { writers: WriterLite[] }) {
         <p className="hint">{format === "auto" && writer.format !== "auto" ? `Usará su estilo habitual: ${FORMATS[writer.format].label}.` : FORMATS[format].hint}.</p>
       </fieldset>
 
-      {error && <p role="alert" className="banner banner-err mt-4">{error}</p>}
+      {upsell ? (
+        <div className="mt-4 rounded-2xl border border-[#d9cffd] bg-[#f1edff] p-4">
+          <p className="font-semibold text-[#3a2b7a]">Has usado tus {usage.limit} newsletters gratis de esta semana</p>
+          <p className="mt-1 text-sm text-[#3a2b7a]">El lunes se reinicia el contador. Si no quieres esperar, con Premium escribes sin límite y envías desde tu propio dominio.</p>
+          <Link href="/panel/premium" className="btn btn-primary mt-3">Ver Premium</Link>
+        </div>
+      ) : (
+        error && <p role="alert" className="banner banner-err mt-4">{error}</p>
+      )}
 
-      <button type="submit" className="btn btn-primary mt-5 w-full sm:w-auto">
-        Escribir newsletter
-      </button>
+      <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2">
+        <button type="submit" className="btn btn-primary w-full sm:w-auto" disabled={upsell}>
+          Escribir newsletter
+        </button>
+        {usage.plan === "free" && (
+          <p className="text-sm text-muted">
+            Esta semana: <strong className="text-ink">{Math.min(usage.used, usage.limit)} de {usage.limit}</strong> newsletters ·{" "}
+            <Link href="/panel/premium" className="font-semibold text-brand underline-offset-2 hover:underline">Sin límite con Premium</Link>
+          </p>
+        )}
+      </div>
     </form>
   );
 }

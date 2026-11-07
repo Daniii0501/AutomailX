@@ -5,18 +5,21 @@ import WriterAvatar from "@/components/WriterAvatar";
 import { aiEnabled } from "@/lib/ai";
 import { ANIMALS, ANIMAL_IDS } from "@/lib/animals";
 import { demoLogin, requireUser } from "@/lib/auth";
-import { listWriters } from "@/lib/data";
+import { getAccount, listWriters } from "@/lib/data";
 import { count, eq } from "@/lib/db";
 import { mailEnabled } from "@/lib/email";
 import { lookOf } from "@/lib/newsletter";
-import { FREE } from "@/lib/plans";
+import { FREE, limitsFor } from "@/lib/plans";
+import { usedWeek } from "@/lib/rate";
 
 export default async function PanelHome() {
   const user = await requireUser();
-  const [writers, confirmed, drafts] = await Promise.all([
+  const [writers, confirmed, drafts, account, usedThisWeek] = await Promise.all([
     listWriters(user.id),
     count("subscribers", { user_id: eq(user.id), status: eq("confirmed") }),
     count("newsletters", { user_id: eq(user.id), status: eq("draft") }),
+    getAccount(user.id),
+    usedWeek(`write-week:${user.id}`),
   ]);
 
   if (writers.length === 0) {
@@ -72,7 +75,7 @@ export default async function PanelHome() {
         </p>
       )}
 
-      <Composer writers={lite} />
+      <Composer writers={lite} usage={{ plan: account.plan, used: usedThisWeek, limit: limitsFor(account.plan).writesPerWeek }} />
 
       <div className="grid gap-3 sm:grid-cols-2">
         <Link href="/panel/audiencia" className="card p-4 transition hover:-translate-y-0.5">

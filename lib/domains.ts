@@ -179,3 +179,21 @@ export async function senderAddressFor(userId: string): Promise<string | null> {
   if (u?.plan !== "pro" || !isVerified(d)) return null;
   return `${d!.from_local}@${d!.name}`;
 }
+
+/**
+ * Activa el seguimiento de aperturas y clics en el dominio compartido (el de MAIL_FROM),
+ * para que las métricas funcionen en las cuentas gratis. Se hace una vez desde Administración.
+ */
+export async function enablePlatformTracking(): Promise<{ ok: true; domain: string } | { ok: false; error: string }> {
+  const name = platformDomain();
+  if (!name) return { ok: false, error: "Falta MAIL_FROM con tu dominio." };
+  try {
+    const list = await resend<{ data?: ResendDomain[] }>("GET", "/domains");
+    const d = (list.data ?? []).find((x) => x.name?.toLowerCase() === name);
+    if (!d) return { ok: false, error: `No encuentro ${name} en tu cuenta de Resend.` };
+    await resend("PATCH", `/domains/${d.id}`, { open_tracking: true, click_tracking: true });
+    return { ok: true, domain: name };
+  } catch (e) {
+    return { ok: false, error: e instanceof ResendError ? e.message : "No se pudo hablar con Resend." };
+  }
+}

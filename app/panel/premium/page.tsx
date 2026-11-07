@@ -5,18 +5,24 @@ import { requireUser } from "@/lib/auth";
 import { getAccount } from "@/lib/data";
 import { eq, isNull, one } from "@/lib/db";
 import { getDomain } from "@/lib/domains";
-import { limitsFor } from "@/lib/plans";
+import { fecha } from "@/lib/format-utils";
+import { limitsFor, priceLabel } from "@/lib/plans";
+import { billingOf, stripeEnabled } from "@/lib/stripe";
 import { usedWeek } from "@/lib/rate";
 
 export const metadata = { title: "Premium · AutoMailX" };
 
-export default async function PanelPremiumPage() {
+type SP = Promise<{ pagado?: string }>;
+
+export default async function PanelPremiumPage({ searchParams }: { searchParams: SP }) {
   const user = await requireUser();
-  const [account, used, request, domain] = await Promise.all([
+  const { pagado } = await searchParams;
+  const [account, used, request, domain, billing] = await Promise.all([
     getAccount(user.id),
     usedWeek(`write-week:${user.id}`),
     one<{ billing: "monthly" | "yearly"; created_at: string }>("premium_requests", { select: "billing,created_at", user_id: eq(user.id), handled_at: isNull }),
     getDomain(user.id),
+    billingOf(user.id),
   ]);
   const limit = limitsFor(account.plan).writesPerWeek;
   const isPro = account.plan === "pro";
@@ -29,6 +35,22 @@ export default async function PanelPremiumPage() {
           {isPro ? "Gracias por apoyar AutoMailX. Esto es lo que tienes:" : "Envía desde tu propio dominio y escribe sin límites."}
         </p>
       </div>
+
+      {pagado && (
+        <p className="banner banner-ok">
+          {isPro ? "¡Pago completado! Ya tienes Premium. ✨" : "¡Pago recibido! Estamos activando tu Premium; recarga la página en unos segundos."}
+        </p>
+      )}
+      {isPro && billing.status === "past_due" && (
+        <p className="banner banner-err">No hemos podido cobrar tu última cuota. Pulsa «Gestionar mi suscripción» y revisa tu tarjeta para no perder Premium.</p>
+      )}
+      {isPro && billing.periodEnd && billing.status !== "past_due" && (
+        <p className="banner banner-info">
+          {billing.cancelAtPeriodEnd
+            ? `Has cancelado tu suscripción: sigues con Premium hasta el ${fecha(billing.periodEnd)}. Puedes reactivarla en «Gestionar mi suscripción».`
+            : `Tu suscripción se renueva el ${fecha(billing.periodEnd)} por ${priceLabel()}.`}
+        </p>
+      )}
 
       <section aria-label="Tu uso" className="grid gap-3 sm:grid-cols-2">
         <div className="card p-5">
@@ -54,7 +76,7 @@ export default async function PanelPremiumPage() {
 
       <section aria-labelledby="planes">
         <h2 id="planes" className="mb-4 text-xl font-bold">Planes</h2>
-        <PricingCards context="app" plan={account.plan} requested={request} />
+        <PricingCards context="app" plan={account.plan} checkout={stripeEnabled()} hasCustomer={billing.hasCustomer && !!billing.status} requested={!!request} />
       </section>
 
       <section aria-labelledby="faq">

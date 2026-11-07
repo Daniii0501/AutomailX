@@ -40,6 +40,15 @@ práctico, dominio propio). Páginas: `/premium` (pública) y `/panel/premium`. 
 `CHECKOUT_ENABLED` sea `false`, «Quiero Premium» guarda una solicitud (`premium_requests`) y avisa
 por correo a los administradores, que activan el plan en `/panel/admin`.
 
+## Cobros (Stripe)
+
+`STRIPE_SECRET_KEY` y `STRIPE_WEBHOOK_SECRET`. El producto y el precio (`lib/plans.ts`, 12,70 €/mes IVA
+incluido) se crean solos en Stripe la primera vez, buscados por `lookup_key`. «Pagar con tarjeta» abre
+Stripe Checkout; `/api/webhooks/stripe` (eventos `checkout.session.completed`,
+`customer.subscription.updated|deleted`, `invoice.payment_failed`) da o quita Premium. «Gestionar mi
+suscripción» abre el portal de Stripe (facturas, tarjeta, cancelar al final del periodo).
+`/api/health?deep=1` comprueba que la clave funciona.
+
 ## Carpetas
 
 ```

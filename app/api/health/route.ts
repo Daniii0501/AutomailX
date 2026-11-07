@@ -1,4 +1,5 @@
 import { aiLabel } from "@/lib/ai";
+import { stripe, stripeEnabled, stripeTestMode } from "@/lib/stripe";
 import { count, dbConfigured, eq, inList, remove, rpc, select, update } from "@/lib/db";
 import { mailEnabled, usingTestSender } from "@/lib/email";
 import { json } from "@/lib/http";
@@ -39,7 +40,17 @@ export async function GET(req: Request) {
     }
   }
   const dbMs = Date.now() - t0;
-  const deep = db === "ok" && new URL(req.url).searchParams.get("deep") === "1" ? await deepCheck() : undefined;
+  const deepOn = new URL(req.url).searchParams.get("deep") === "1";
+  const deep = db === "ok" && deepOn ? await deepCheck() : undefined;
+  let pay: string = stripeEnabled() ? (stripeTestMode() ? "ok (modo pruebas)" : "ok (cobros reales)") : "falta STRIPE_SECRET_KEY";
+  if (stripeEnabled() && !process.env.STRIPE_WEBHOOK_SECRET) pay = "falta STRIPE_WEBHOOK_SECRET";
+  if (stripeEnabled() && deepOn) {
+    try {
+      await stripe().balance.retrieve();
+    } catch (e) {
+      pay = `la clave de Stripe falla: ${e instanceof Error ? e.message.slice(0, 80) : "error"}`;
+    }
+  }
   return json({
     ok: db === "ok",
     db,
@@ -47,6 +58,7 @@ export async function GET(req: Request) {
     ...(deep ? { deep } : {}),
     ai: aiLabel() ? `ok: ${aiLabel()}` : "falta ANTHROPIC_API_KEY u OPENAI_API_KEY (modo simulado)",
     mail: mailEnabled() ? (usingTestSender() ? "ok (remitente de pruebas: solo a tu propio correo)" : "ok") : "falta RESEND_API_KEY",
+    payments: pay,
     stats: process.env.RESEND_WEBHOOK_SECRET ? "ok" : "falta RESEND_WEBHOOK_SECRET (sin aperturas ni clics)",
     cron: process.env.CRON_SECRET ? "ok" : "falta CRON_SECRET",
     demoLogin: process.env.ALLOW_DEMO_LOGIN === "1" ? "ACTIVADA (quítala antes de abrir la web al público)" : "desactivada",

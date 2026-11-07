@@ -2,7 +2,7 @@ import { getAccount } from "@/lib/data";
 import { eq, insert, select } from "@/lib/db";
 import { sendBatch, simpleMail } from "@/lib/email";
 import { authed, baseUrl, fail, json, readBody } from "@/lib/http";
-import { PRICE } from "@/lib/plans";
+import { priceLabel } from "@/lib/plans";
 import { hit } from "@/lib/rate";
 import { clean } from "@/lib/util";
 
@@ -20,10 +20,10 @@ export const POST = authed(async (req, user) => {
 
   const admins = await select<{ email: string }>("users", { select: "email", is_admin: eq(true) });
   if (admins.length) {
-    const price = billing === "yearly" ? `${PRICE.yearly} €/año` : `${PRICE.monthly} €/mes`;
+    const price = `${priceLabel()}/mes`;
     const m = simpleMail({
       heading: "Nueva solicitud de Premium",
-      body: `${user.email} quiere Premium (${billing === "yearly" ? "anual" : "mensual"}, ${price}). Escríbele para cobrarlo y actívalo en Administración.`,
+      body: `${user.email} quiere Premium (${price}). Escríbele para cobrarlo y actívalo en Administración.`,
       buttonText: "Abrir Administración",
       buttonUrl: `${baseUrl(req)}/panel/admin`,
       foot: "Te llega porque eres administrador de AutoMailX.",

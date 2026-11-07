@@ -29,11 +29,11 @@ const FAQ = [
   },
   {
     q: "¿Puedo cancelar cuando quiera?",
-    a: "Sí. Sin permanencia: cancelas y sigues con Premium hasta el final del periodo que ya has pagado.",
+    a: "Sí, sin permanencia. Desde «Gestionar mi suscripción» cancelas en dos clics y sigues con Premium hasta el final del mes que ya has pagado.",
   },
   {
     q: "¿Cómo se paga?",
-    a: "Ahora mismo, al pulsar «Quiero Premium» te escribimos para activarlo y cobrarlo. Muy pronto podrás pagar con tarjeta directamente aquí.",
+    a: "Con tarjeta, en la página segura de Stripe. Nosotros no vemos ni guardamos tu tarjeta. Recibes la factura por correo cada mes y puedes descargarlas en «Gestionar mi suscripción».",
   },
 ];
 

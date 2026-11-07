@@ -21,12 +21,12 @@ export const PRO = { ...COMMON, writesPerWeek: 150 } as const;
 
 export const limitsFor = (plan: PlanId) => (plan === "pro" ? PRO : FREE);
 
-/** Precio de Premium (euros, IVA incluido). Cámbialo aquí. */
-export const PRICE = { monthly: 9, yearly: 79 } as const;
-export const yearlySaving = () => Math.round(100 - (PRICE.yearly / (PRICE.monthly * 12)) * 100);
-
-/** Mientras no haya pago con tarjeta, Premium se solicita y lo activa el administrador. */
-export const CHECKOUT_ENABLED = false;
+/** Precio de Premium: euros al mes, IVA incluido. Cámbialo aquí (y la web crea el precio nuevo en Stripe sola). */
+export const PRICE = { monthly: 12.7 } as const;
+/** En céntimos, para Stripe. */
+export const PRICE_CENTS = Math.round(PRICE.monthly * 100);
+/** "12,70 €" */
+export const priceLabel = () => `${PRICE.monthly.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
 
 export const PREMIUM_FEATURES = [
   { icon: "✉️", title: "Tu propio dominio", text: "Tus newsletters salen desde hola@tunegocio.com: más confianza, mejor entrega y tu marca en cada correo." },

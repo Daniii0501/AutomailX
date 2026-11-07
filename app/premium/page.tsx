@@ -2,11 +2,11 @@ import Link from "next/link";
 import Brand from "@/components/Brand";
 import { PremiumFaq, PremiumFeatures } from "@/components/PremiumInfo";
 import PricingCards from "@/components/PricingCards";
-import { PRICE } from "@/lib/plans";
+import { priceLabel } from "@/lib/plans";
 
 export const metadata = {
   title: "Premium · AutoMailX",
-  description: `Newsletters sin límite y envío desde tu propio dominio por ${PRICE.monthly} € al mes.`,
+  description: `Newsletters sin límite y envío desde tu propio dominio por ${priceLabel()} al mes.`,
 };
 
 export default function PremiumPage() {
@@ -23,7 +23,7 @@ export default function PremiumPage() {
             Tu newsletter, <span className="text-gradient">con tu nombre y sin límites</span>
           </h1>
           <p className="mx-auto mt-4 max-w-xl text-lg text-muted">
-            Envía desde tu propio dominio y escribe todas las newsletters que quieras. Por {PRICE.monthly} € al mes.
+            Envía desde tu propio dominio y escribe todas las newsletters que quieras. Por {priceLabel()} al mes.
           </p>
         </section>
 

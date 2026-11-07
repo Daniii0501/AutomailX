@@ -117,3 +117,11 @@ export function parseWriter(b: Record<string, unknown>): Record<string, unknown>
 export function parseContent(x: unknown): Newsletter | null {
   return sanitizeNewsletter(x);
 }
+
+export type Account = { plan: "free" | "pro"; is_admin: boolean };
+
+/** Plan y permisos del usuario. */
+export async function getAccount(userId: string): Promise<Account> {
+  const a = await one<Account>("users", { select: "plan,is_admin", id: eq(userId) });
+  return { plan: a?.plan === "pro" ? "pro" : "free", is_admin: a?.is_admin === true };
+}

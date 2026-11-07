@@ -24,6 +24,15 @@ apertura, clic, rebote y queja en `/api/webhooks/resend` (firma Svix comprobada 
 suscriptor como `bounced`; una queja de spam lo da de baja. El enlace de baja lleva la campaña (`?n=`).
 La página es `/panel/estadisticas`.
 
+## Planes y dominios propios
+
+`users.plan` es `free` o `pro`; `users.is_admin` da acceso a `/panel/admin`, donde se cambia el plan
+a mano (hasta que haya pagos). Un usuario Premium puede dar de alta su dominio en Ajustes: se crea en
+la cuenta de Resend de AutoMailX (`POST /domains`, región eu-west-1, con seguimiento de aperturas y
+clics), se le muestran los registros DNS y, cuando Resend lo verifica, sus envíos salen desde
+`<dirección>@<su dominio>`. Si deja de ser Premium, vuelve al remitente compartido (`MAIL_FROM`).
+Requiere que `RESEND_API_KEY` tenga permiso «Full access».
+
 ## Carpetas
 
 ```

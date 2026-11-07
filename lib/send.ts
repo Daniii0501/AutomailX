@@ -1,5 +1,6 @@
 import "server-only";
 import { getNewsletter, getPublication } from "./data";
+import { senderAddressFor } from "./domains";
 import { eq, insert, select, update } from "./db";
 import { renderNewsletter, sendBatch, sendMail, type Mail } from "./email";
 import { DEFAULT_LOOK } from "./newsletter";
@@ -15,7 +16,7 @@ export type SendOutcome =
 async function context(user: Who, newsletterId: string, base: string) {
   const n = await getNewsletter(user.id, newsletterId);
   if (!n) return null;
-  const pub = await getPublication(user.id);
+  const [pub, fromEmail] = await Promise.all([getPublication(user.id), senderAddressFor(user.id)]);
   const common = {
     look: n.look?.color ? n.look : DEFAULT_LOOK,
     senderName: pub.sender_name,
@@ -23,7 +24,7 @@ async function context(user: Who, newsletterId: string, base: string) {
     replyTo: pub.reply_to ?? undefined,
     siteUrl: base,
   };
-  return { n, pub, common };
+  return { n, pub, common, fromEmail: fromEmail ?? undefined };
 }
 
 /** HTML de vista previa (igual que el correo real). */
@@ -39,7 +40,7 @@ export async function sendTest(user: Who, newsletterId: string, base: string): P
   if (!c) return { ok: false, status: 404, error: "No encontramos esta newsletter." };
   if (!(await hit(`test:${user.id}`, FREE.testsPerDay))) return { ok: false, status: 429, error: "Demasiadas pruebas por hoy." };
   const { html, text } = renderNewsletter(c.n.content, { ...c.common, unsubscribeUrl: `${base}/u/vista-previa` });
-  const r = await sendMail({ to: user.email, subject: `[Prueba] ${c.n.content.subject}`, html, text, fromName: c.pub.sender_name, replyTo: c.pub.reply_to ?? undefined });
+  const r = await sendMail({ to: user.email, subject: `[Prueba] ${c.n.content.subject}`, html, text, fromName: c.pub.sender_name, fromEmail: c.fromEmail, replyTo: c.pub.reply_to ?? undefined });
   if (!r.ok) return { ok: false, status: 502, error: r.error ?? "No se pudo enviar la prueba." };
   return { ok: true, demo: r.demo, sent: r.sent };
 }
@@ -48,7 +49,7 @@ export async function sendTest(user: Who, newsletterId: string, base: string): P
 export async function deliverNewsletter(user: Who, newsletterId: string, base: string): Promise<SendOutcome> {
   const c = await context(user, newsletterId, base);
   if (!c) return { ok: false, status: 404, error: "No encontramos esta newsletter." };
-  const { n, pub, common } = c;
+  const { n, pub, common, fromEmail } = c;
   if (n.status !== "draft") return { ok: false, status: 409, error: "Esta newsletter ya está enviada o enviándose." };
 
   const subs = await select<{ id: string; email: string; token: string }>("subscribers", { select: "id,email,token", user_id: eq(user.id), status: eq("confirmed") });
@@ -68,6 +69,7 @@ export async function deliverNewsletter(user: Who, newsletterId: string, base: s
       html,
       text,
       fromName: pub.sender_name,
+      fromEmail,
       replyTo: pub.reply_to ?? undefined,
       headers: {
         "List-Unsubscribe": `<${base}/api/public/unsubscribe?token=${s.token}&n=${newsletterId}>`,

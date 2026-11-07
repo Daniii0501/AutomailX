@@ -9,10 +9,13 @@ export const mailEnabled = () => !!process.env.RESEND_API_KEY;
 /** Con el remitente de pruebas de Resend solo se puede escribir al dueño de la cuenta de Resend. */
 export const usingTestSender = () => FROM().includes("resend.dev");
 
-const fromAddress = () => FROM().match(/<([^>]+)>/)?.[1] ?? FROM();
-function fromWith(name: string): string {
+/** Dirección del remitente compartido (la de MAIL_FROM). */
+export const platformAddress = () => FROM().match(/<([^>]+)>/)?.[1] ?? FROM();
+/** Dominio del remitente compartido, p. ej. "automailx.es". */
+export const platformDomain = () => platformAddress().split("@")[1]?.toLowerCase() ?? "";
+function fromWith(name: string, address = platformAddress()): string {
   const safe = name.replace(/["<>\r\n]/g, "").trim().slice(0, 60) || "AutoMailX";
-  return `${safe} <${fromAddress()}>`;
+  return `${safe} <${address}>`;
 }
 
 export type Mail = {
@@ -21,6 +24,8 @@ export type Mail = {
   html: string;
   text: string;
   fromName?: string;
+  /** Dirección propia (dominio Premium verificado). Si falta, se usa la compartida. */
+  fromEmail?: string;
   replyTo?: string;
   headers?: Record<string, string>;
 };
@@ -29,7 +34,7 @@ export type Mail = {
 export type SendResult = { ok: boolean; demo: boolean; sent: number; error?: string; ids?: (string | null)[] };
 
 const payload = (m: Mail) => ({
-  from: m.fromName ? fromWith(m.fromName) : FROM(),
+  from: m.fromName ? fromWith(m.fromName, m.fromEmail) : FROM(),
   to: [m.to],
   subject: m.subject,
   html: m.html,

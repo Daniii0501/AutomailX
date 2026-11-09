@@ -1,7 +1,7 @@
 import { aiLabel } from "@/lib/ai";
 import { stripe, stripeEnabled, stripeTestMode } from "@/lib/stripe";
 import { count, dbConfigured, eq, inList, remove, rpc, select, update } from "@/lib/db";
-import { mailEnabled, usingTestSender } from "@/lib/email";
+import { mailEnabled, platformAddress, senderMisconfigured, usingTestSender } from "@/lib/email";
 import { json } from "@/lib/http";
 
 export const dynamic = "force-dynamic";
@@ -57,7 +57,13 @@ export async function GET(req: Request) {
     dbMs,
     ...(deep ? { deep } : {}),
     ai: aiLabel() ? `ok: ${aiLabel()}` : "falta ANTHROPIC_API_KEY u OPENAI_API_KEY (modo simulado)",
-    mail: mailEnabled() ? (usingTestSender() ? "ok (remitente de pruebas: solo a tu propio correo)" : "ok") : "falta RESEND_API_KEY",
+    mail: !mailEnabled()
+      ? "falta RESEND_API_KEY"
+      : senderMisconfigured()
+        ? "MAIL_FROM no tiene un correo válido (ejemplo: AutoMailX <hola@tudominio.com>)"
+        : usingTestSender()
+          ? "ok (remitente de pruebas: solo a tu propio correo)"
+          : `ok (envía desde ${platformAddress()})`,
     payments: pay,
     stats: process.env.RESEND_WEBHOOK_SECRET ? "ok" : "falta RESEND_WEBHOOK_SECRET (sin aperturas ni clics)",
     cron: process.env.CRON_SECRET ? "ok" : "falta CRON_SECRET",

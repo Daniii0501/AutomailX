@@ -4,18 +4,41 @@ import { SANS } from "./render";
 
 export { renderNewsletter } from "./render";
 
-const FROM = () => process.env.MAIL_FROM || "AutoMailX <onboarding@resend.dev>";
+const TEST_SENDER = { name: "AutoMailX", address: "onboarding@resend.dev" };
+
+/**
+ * Lee MAIL_FROM aunque no esté escrito con el formato exacto de Resend. Acepta, por ejemplo:
+ *   AutoMailX <hola@dominio.com> · hola@dominio.com · "AutoMailX <hola@dominio.com>" · AutoMailX hola@dominio.com · dominio.com
+ * y lo convierte siempre en  Nombre <correo@dominio>.
+ */
+export function parseSender(raw: string | undefined): { name: string; address: string } | null {
+  if (!raw || !raw.trim()) return null;
+  const s = raw.trim().replace(/^["'“”«»]+|["'“”«»]+$/g, "").trim();
+  const m = s.match(/[a-z0-9._%+-]+@[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,}/i);
+  if (m) {
+    const name = s.slice(0, m.index).replace(/[<>"'“”«»:,]/g, "").trim();
+    return { name: name || "AutoMailX", address: m[0].toLowerCase() };
+  }
+  const domain = s.replace(/^https?:\/\//i, "").replace(/\/.*$/, "").replace(/^@/, "").toLowerCase();
+  if (/^[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}$/.test(domain)) return { name: "AutoMailX", address: `hola@${domain}` };
+  return null;
+}
+
+/** MAIL_FROM tiene algo pero no se entiende como correo. */
+export const senderMisconfigured = () => !!process.env.MAIL_FROM?.trim() && !parseSender(process.env.MAIL_FROM);
+const SENDER = () => parseSender(process.env.MAIL_FROM) ?? TEST_SENDER;
+const cleanName = (name: string) => name.replace(/["<>\r\n]/g, "").trim().slice(0, 60) || "AutoMailX";
+const FROM = () => `${cleanName(SENDER().name)} <${SENDER().address}>`;
 export const mailEnabled = () => !!process.env.RESEND_API_KEY;
 /** Con el remitente de pruebas de Resend solo se puede escribir al dueño de la cuenta de Resend. */
-export const usingTestSender = () => FROM().includes("resend.dev");
+export const usingTestSender = () => SENDER().address.endsWith("resend.dev");
 
 /** Dirección del remitente compartido (la de MAIL_FROM). */
-export const platformAddress = () => FROM().match(/<([^>]+)>/)?.[1] ?? FROM();
+export const platformAddress = () => SENDER().address;
 /** Dominio del remitente compartido, p. ej. "automailx.es". */
 export const platformDomain = () => platformAddress().split("@")[1]?.toLowerCase() ?? "";
 function fromWith(name: string, address = platformAddress()): string {
-  const safe = name.replace(/["<>\r\n]/g, "").trim().slice(0, 60) || "AutoMailX";
-  return `${safe} <${address}>`;
+  return `${cleanName(name)} <${address}>`;
 }
 
 export type Mail = {
@@ -47,7 +70,9 @@ function friendly(status: number, body: string): string {
   if (status === 403 && /testing emails|verify a domain/i.test(body))
     return "Resend solo deja escribir a tu propio correo hasta que verifiques un dominio (Resend > Domains).";
   if (status === 401 || status === 403) return "La clave de Resend no es válida.";
-  if (status === 422) return `Resend ha rechazado el correo: ${body.slice(0, 160)}`;
+  if (status === 422 && /`from`|from field|domain is not verified|not verified/i.test(body))
+    return "El remitente no es válido o su dominio no está verificado en Resend. Revisa MAIL_FROM en Vercel (ejemplo: AutoMailX <hola@tudominio.com>) y que el dominio salga como «Verified» en Resend > Domains.";
+  if (status === 422) return `Resend ha rechazado el correo: ${(body.match(/"message"\s*:\s*"([^"]+)"/)?.[1] ?? body).slice(0, 160)}`;
   if (status === 429) return "Resend dice que vamos demasiado rápido. Prueba en un minuto.";
   return `Resend ${status}: ${body.slice(0, 160)}`;
 }
